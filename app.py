@@ -3560,12 +3560,12 @@ def internal_error(error):
 
 
 @app.route("/")
-def serve_react_app():
+def serve_home():
     return send_from_directory(app.static_folder, "index.html")
 
 
 @app.route("/<path:path>")
-def serve_react_routes(path):
+def serve_static_files(path):
     file_path = os.path.join(app.static_folder, path)
 
     if os.path.exists(file_path):

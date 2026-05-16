@@ -4,7 +4,7 @@ import jsPDF from "jspdf";
 import toast, { Toaster } from "react-hot-toast";
 import { InfinitySpin } from "react-loader-spinner";
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+const API_BASE_URL = "https://ai-doc-assistant-production-7946.up.railway.app";
 const MAX_FILE_SIZE_MB = 2;
 const MAX_TOTAL_FILES = 80;
 
