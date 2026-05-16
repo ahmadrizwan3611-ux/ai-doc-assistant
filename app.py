@@ -3551,7 +3551,7 @@ def request_entity_too_large(error):
 
 @app.errorhandler(404)
 def not_found(error):
-    return jsonify({"ok": False, "error": "Endpoint not found."}), 404
+    return send_from_directory(app.static_folder, "index.html")
 
 
 @app.errorhandler(500)
