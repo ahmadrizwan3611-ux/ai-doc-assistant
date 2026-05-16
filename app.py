@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import ast
 import re
@@ -7,7 +7,7 @@ import logging
 from dotenv import load_dotenv
 from openai import OpenAI
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static", static_url_path="")
 
 # Production-safe configuration
 app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_CONTENT_LENGTH", 5 * 1024 * 1024))
@@ -3557,6 +3557,21 @@ def not_found(error):
 @app.errorhandler(500)
 def internal_error(error):
     return jsonify({"ok": False, "error": "Internal server error."}), 500
+
+
+@app.route("/")
+def serve_react_app():
+    return send_from_directory(app.static_folder, "index.html")
+
+
+@app.route("/<path:path>")
+def serve_react_routes(path):
+    file_path = os.path.join(app.static_folder, path)
+
+    if os.path.exists(file_path):
+        return send_from_directory(app.static_folder, path)
+
+    return send_from_directory(app.static_folder, "index.html")
 
 
 if __name__ == "__main__":
