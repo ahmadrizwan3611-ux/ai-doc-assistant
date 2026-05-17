@@ -419,6 +419,9 @@ function App() {
             >
               <strong>Drag & drop source files here</strong>
               <span>or use the upload buttons above</span>
+              <p className="drop-note">
+                Drag files from your computer folders, not from browser downloads.
+              </p>
             </div>
 
           <textarea
