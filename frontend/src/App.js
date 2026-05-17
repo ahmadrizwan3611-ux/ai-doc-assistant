@@ -166,14 +166,11 @@ function App() {
     setErrorMessage("");
 
     try {
-      const droppedFiles = Array.from(event.dataTransfer.files || []);
-
-      if (!droppedFiles.length) {
-        toast.error("No files dropped.");
-        return;
-      }
-
-      await processSelectedFiles(droppedFiles);
+      await handleFileUpload({
+        target: {
+          files: event.dataTransfer.files,
+        },
+      });
     } catch (error) {
       console.error("Drop error:", error);
       toast.error("Failed to read dropped files.");
