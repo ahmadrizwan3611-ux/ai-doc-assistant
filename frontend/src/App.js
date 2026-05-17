@@ -4,7 +4,7 @@ import jsPDF from "jspdf";
 import toast, { Toaster } from "react-hot-toast";
 import { InfinitySpin } from "react-loader-spinner";
 
-const API_BASE_URL = "https://ai-doc-assistant-production-7946.up.railway.app";
+const API_BASE_URL = process.env.REACT_APP_API_URL || "https://ai-doc-assistant-production-7946.up.railway.app";
 const MAX_FILE_SIZE_MB = 2;
 const MAX_TOTAL_FILES = 80;
 
@@ -159,60 +159,23 @@ function App() {
     }
   };
 
-  const handleDropUpload = async (event) => {
+  const handleDrop = async (event) => {
     event.preventDefault();
     event.stopPropagation();
     setIsDragging(false);
-
-    const droppedFiles = Array.from(event.dataTransfer.files || []);
-
-    if (droppedFiles.length === 0) {
-      toast.error("No files detected. Try dragging files instead of a folder.");
-      return;
-    }
-
-    const validFiles = droppedFiles.filter((file) => {
-      return !shouldIgnoreFile(file.name);
-    });
-
-    if (validFiles.length === 0) {
-      toast.error("No supported source code files found.");
-      return;
-    }
-    setSelectedFileCount(validFiles.length);
+    setErrorMessage("");
 
     try {
-      const readPromises = validFiles.map((file) => {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
+      const droppedFiles = Array.from(event.dataTransfer.files || []);
 
-          reader.onload = (e) => {
-            resolve({
-              name: file.webkitRelativePath || file.name,
-              content: e.target.result,
-            });
-          };
+      if (!droppedFiles.length) {
+        toast.error("No files dropped.");
+        return;
+      }
 
-          reader.onerror = () => reject(reader.error);
-          reader.readAsText(file);
-        });
-      });
-
-      const results = await Promise.all(readPromises);
-
-      const combinedCode = results
-        .map((file) => {
-          return "--- FILE: " + file.name + " ---\n" + file.content;
-        })
-        .join("\n\n");
-
-      setCode(combinedCode);
-      setDoc("");
-      setDetectedLanguage("");
-      setFileName(results.map((file) => file.name).join(", "));
-
-      toast.success(results.length + " file(s) added.");
+      await processSelectedFiles(droppedFiles);
     } catch (error) {
+      console.error("Drop error:", error);
       toast.error("Failed to read dropped files.");
     }
   };
