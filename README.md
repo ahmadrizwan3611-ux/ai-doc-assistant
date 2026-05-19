@@ -1,6 +1,6 @@
 # AI Doc Assistant
 
-AI Doc Assistant is a React and Flask based documentation generator that analyzes source code files and project folders, then generates clean technical documentation.
+AI-powered engineering workspace that analyzes codebases, generates documentation, explains project architecture, detects issues, and helps developers onboard faster.
 
 ## Features
 
