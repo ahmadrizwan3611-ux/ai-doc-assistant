@@ -15,6 +15,10 @@ AI-powered engineering workspace that analyzes codebases, generates documentatio
 - Rule-based fallback engine
 - Dark mode
 - Responsive UI
+- AI bug analyzer for traceback and error logs
+- Explains errors in simple developer-friendly language
+- Suggests likely causes and fixes
+- Helps junior developers debug faster
 
 ## Tech Stack
 
