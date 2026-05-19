@@ -20,6 +20,13 @@ AI-powered engineering workspace that analyzes codebases, generates documentatio
 - Suggests likely causes and fixes
 - Helps junior developers debug faster
 
+## Upcoming Feature
+
+### AI Bug Analyzer
+
+Developers often waste time understanding long terminal errors, stack traces, and framework-specific bugs.  
+This feature will allow users to paste an error log or traceback and get a clear explanation, likely cause, suggested fix, and prevention tip.
+
 ## Tech Stack
 
 - React
