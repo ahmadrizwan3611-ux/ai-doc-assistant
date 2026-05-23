@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+﻿import React, { useState, useEffect, useMemo, useRef } from "react";
 import "./App.css";
 import jsPDF from "jspdf";
 import toast, { Toaster } from "react-hot-toast";
 import { InfinitySpin } from "react-loader-spinner";
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:5000";
+const API_BASE_URL = process.env.REACT_APP_API_URL || ((typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) ? "http://127.0.0.1:5000" : window.location.origin);
 const MAX_FILE_SIZE_MB = 2;
 const MAX_TOTAL_FILES = 80;
 
-// ─── Auth helpers ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Auth helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const getToken = () => localStorage.getItem("devflow_token");
 const getRefreshToken = () => localStorage.getItem("devflow_refresh_token");
 const getStoredUser = () => {
@@ -89,9 +89,9 @@ const authFetch = async (path, options = {}, onAuthExpired) => {
 };
 
 
-// ═════════════════════════════════════════════════════════════════════════════
-// PUBLIC LANDING PAGE — PHASE 4 FOUNDATION
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// SAAS LANDING PAGE â€” PUBLIC DEMO
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function LandingPage({ onStart }) {
   const features = [
     {
@@ -116,19 +116,19 @@ function LandingPage({ onStart }) {
     {
       name: "Free",
       price: "$0",
-      note: "For learning and testing",
+      note: "For trying DevFlow",
       items: ["5 AI docs/month", "1 workspace", "Bug Analyzer", "Project Health", "Markdown/PDF export"]
     },
     {
       name: "Pro",
       price: "$19",
-      note: "For serious developers",
+      note: "For active developers",
       items: ["Unlimited docs", "GitHub repo documentation", "3 workspaces", "Saved docs history", "Priority AI responses"]
     },
     {
       name: "Team",
       price: "$49",
-      note: "For software companies",
+      note: "For growing software teams",
       items: ["Unlimited workspaces", "Team members", "Code Review Assistant", "Jira/Trello roadmap", "Admin and audit features"]
     }
   ];
@@ -296,9 +296,9 @@ function LandingPage({ onStart }) {
           padding: "34px",
           boxShadow: "0 18px 50px rgba(15, 23, 42, 0.18)"
         }}>
-          <h2 style={{ margin: "0 0 10px", fontSize: "34px" }}>Phase 4: SaaS pricing foundation</h2>
+          <h2 style={{ margin: "0 0 10px", fontSize: "34px" }}>Simple pricing for modern software teams</h2>
           <p style={{ color: "#cbd5e1", margin: "0 0 24px", fontSize: "17px", lineHeight: "1.6" }}>
-            This is the next roadmap step: landing page, pricing, subscriptions, usage limits, and upgrade flow.
+            Start free, upgrade when your team needs more workspaces, unlimited AI documentation, and company-ready collaboration.
           </p>
 
           <div style={{
@@ -328,9 +328,9 @@ function LandingPage({ onStart }) {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // AUTH SCREEN
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function AuthScreen({ onLogin, initialMode = "login", onBackToLanding }) {
   const [mode, setMode]       = useState(initialMode); // "login" | "signup"
   const [email, setEmail]     = useState("");
@@ -394,7 +394,7 @@ function AuthScreen({ onLogin, initialMode = "login", onBackToLanding }) {
               cursor: "pointer"
             }}
           >
-            ← Back to landing page
+            â† Back to landing page
           </button>
         )}
 
@@ -418,9 +418,9 @@ function AuthScreen({ onLogin, initialMode = "login", onBackToLanding }) {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // WORKSPACE SELECTOR
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function WorkspaceSelector({ user, onSelect, onLogout, onAuthExpired }) {
   const [workspaces, setWorkspaces] = useState([]);
   const [newName, setNewName]       = useState("");
@@ -515,9 +515,9 @@ function WorkspaceSelector({ user, onSelect, onLogout, onAuthExpired }) {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // MAIN APP
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }) {
   const [code, setCode]                   = useState("");
   const [doc, setDoc]                     = useState("");
@@ -723,7 +723,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
   }, [usageInfo]);
 
   const usageText = (item) => {
-    if (!item) return "—";
+    if (!item) return "â€”";
     if (item.unlimited || item.limit === null) return `${item.used} / Unlimited`;
     return `${item.used} / ${item.limit}`;
   };
@@ -1084,7 +1084,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
       price: "$19",
       suffix: "per month",
       badge: "Most popular",
-      description: "For serious developers building and documenting real projects.",
+      description: "For active developers building and documenting real projects.",
       items: ["Unlimited documentation", "GitHub repo documentation", "3 workspaces", "Unlimited AI tools", "Priority AI responses"]
     },
     {
@@ -1107,11 +1107,11 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
         <div className="hero-top">
           <h1>DevFlow</h1>
           <div className="hero-user-bar">
-            <span className="workspace-badge">📁 {workspace.name}</span>
+            <span className="workspace-badge">ðŸ“ {workspace.name}</span>
             <button className="nav-small-btn" onClick={onSwitchWorkspace}>Switch</button>
             <button className="nav-small-btn danger" onClick={onLogout}>Logout</button>
             <button className="theme-toggle" onClick={() => setDarkMode(!darkMode)}>
-              {darkMode ? "☀️" : "🌙"}
+              {darkMode ? "â˜€ï¸" : "ðŸŒ™"}
             </button>
           </div>
         </div>
@@ -1119,11 +1119,11 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
         <div className="workspace-nav">
           {["docs","bugs","health","tasks","github","history","team","billing"].map(m => (
             <button key={m} className={activeModule===m?"nav-active":""} onClick={() => setActiveModule(m)}>
-              {m === "docs" ? "Documentation" : m === "bugs" ? "Bug Analyzer" : m === "health" ? "Project Health" : m === "tasks" ? "Task Generator" : m === "history" ? "📄 Saved Docs" : m === "github" ? "🐙 GitHub" : m === "billing" ? "💳 Billing" : "👥 Team"}
+              {m === "docs" ? "Documentation" : m === "bugs" ? "Bug Analyzer" : m === "health" ? "Project Health" : m === "tasks" ? "Task Generator" : m === "history" ? "ðŸ“„ Saved Docs" : m === "github" ? "ðŸ™ GitHub" : m === "billing" ? "ðŸ’³ Billing" : "ðŸ‘¥ Team"}
             </button>
           ))}
         </div>
-        <p>AI-powered developer workspace — {workspace.name}</p>
+        <p>AI-powered developer workspace â€” {workspace.name}</p>
       </header>
 
       {upgradePrompt && (
@@ -1149,7 +1149,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
           <div style={{display:"flex", justifyContent:"space-between", gap:"16px", alignItems:"center", flexWrap:"wrap"}}>
             <div>
               <strong style={{fontSize:"18px"}}>Plan: {String(usageInfo.plan || "free").toUpperCase()}</strong>
-              <p style={{margin:"4px 0 0", color:"#64748b"}}>Usage period: {usageInfo.period} {usageLoading ? "· Refreshing..." : ""}</p>
+              <p style={{margin:"4px 0 0", color:"#64748b"}}>Usage period: {usageInfo.period} {usageLoading ? "Â· Refreshing..." : ""}</p>
             </div>
             <div style={{display:"flex", gap:"10px", flexWrap:"wrap"}}>
               <button className="secondary-btn" onClick={loadUsage}>Refresh Usage</button>
@@ -1169,7 +1169,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
 
       <main className="main-grid">
 
-        {/* ── DOCUMENTATION ── */}
+        {/* â”€â”€ DOCUMENTATION â”€â”€ */}
         {activeModule === "docs" && (<>
           <section className="card">
             <h2>Paste or Upload Project Code</h2>
@@ -1196,7 +1196,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
             <div className="button-row">
               <button onClick={handleGenerateDoc} disabled={loading||!code.trim()}>{loading?"Generating...":"Generate"}</button>
               <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>Health Check</button>
-              <button className="secondary-btn" onClick={saveDoc} disabled={!doc||saving}>{saving?"Saving...":"💾 Save"}</button>
+              <button className="secondary-btn" onClick={saveDoc} disabled={!doc||saving}>{saving?"Saving...":"ðŸ’¾ Save"}</button>
               <button className="secondary-btn" onClick={()=>{if(!doc){toast.error("Generate first.");return;}navigator.clipboard.writeText(cleanDoc(doc));toast.success("Copied!");}}>Copy</button>
               <button className="secondary-btn" onClick={()=>{if(!doc){toast.error("Generate first.");return;}downloadTextFile(doc,"documentation.md","text/markdown");toast.success("Markdown exported!");}}>Markdown</button>
               <button className="secondary-btn" onClick={handleExportPDF} disabled={!doc}>PDF</button>
@@ -1216,7 +1216,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
           </section>
         </>)}
 
-        {/* ── BUG ANALYZER ── */}
+        {/* â”€â”€ BUG ANALYZER â”€â”€ */}
         {activeModule === "bugs" && (<>
           <section className="card">
             <h2>AI Bug Analyzer</h2>
@@ -1234,7 +1234,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
           </section>
         </>)}
 
-        {/* ── PROJECT HEALTH ── */}
+        {/* â”€â”€ PROJECT HEALTH â”€â”€ */}
         {activeModule === "health" && (
           <div className="module-single-view">
             <section className="card docs-card">
@@ -1242,7 +1242,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
               <p className="helper-text">Upload project code in the Documentation tab first, then generate a health report here.</p>
               <div className="button-row">
                 <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>{loading?"Analyzing...":"Generate Health Report"}</button>
-                <button className="secondary-btn" onClick={saveHealthReport} disabled={!healthReport||saving}>{saving?"Saving...":"💾 Save Health"}</button>
+                <button className="secondary-btn" onClick={saveHealthReport} disabled={!healthReport||saving}>{saving?"Saving...":"ðŸ’¾ Save Health"}</button>
                 <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}navigator.clipboard.writeText(healthReport);toast.success("Copied!");}} disabled={!healthReport}>Copy</button>
                 <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}downloadTextFile(healthReport,"project-health-report.md","text/markdown");toast.success("Markdown exported!");}} disabled={!healthReport}>Markdown</button>
                 <button className="secondary-btn" onClick={()=>exportContentAsPDF("Project Health Report", healthReport, "project-health-report.pdf")} disabled={!healthReport}>PDF</button>
@@ -1253,7 +1253,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
           </div>
         )}
 
-        {/* ── TASK GENERATOR ── */}
+        {/* â”€â”€ TASK GENERATOR â”€â”€ */}
         {activeModule === "tasks" && (<>
           <section className="card">
             <h2>Team Task Generator</h2>
@@ -1271,13 +1271,13 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
           </section>
         </>)}
 
-        {/* ── SAVED DOCS HISTORY ── */}
+        {/* â”€â”€ SAVED DOCS HISTORY â”€â”€ */}
         {activeModule === "history" && (
           <div className="module-single-view">
             <section className="card docs-card">
               {!selectedDoc ? (
                 <>
-                  <h2>📄 Saved Documentation — {workspace.name}</h2>
+                  <h2>ðŸ“„ Saved Documentation â€” {workspace.name}</h2>
                   <p className="helper-text">Open saved documentation, GitHub repo reports, export them, or delete old records.</p>
 
                   {docsLoading ? (
@@ -1290,7 +1290,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
                         <div key={d.id} className="history-item">
                           <div className="history-info">
                             <strong>{d.title}</strong>
-                            <span>{d.language} · {d.file_count} file{d.file_count!==1?"s":""} · {new Date(d.created_at).toLocaleDateString()}</span>
+                            <span>{d.language} Â· {d.file_count} file{d.file_count!==1?"s":""} Â· {new Date(d.created_at).toLocaleDateString()}</span>
                           </div>
                           <div style={{display:"flex",gap:"10px",flexWrap:"wrap"}}>
                             <button className="secondary-btn small-btn" onClick={() => openSavedDoc(d.id)} disabled={docOpening}>
@@ -1309,10 +1309,10 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
                     <div>
                       <h2 style={{marginBottom:"6px"}}>{selectedDoc.title}</h2>
                       <p className="helper-text" style={{marginTop:0}}>
-                        {selectedDoc.language || "Unknown"} · {selectedDoc.file_count || 1} file{selectedDoc.file_count!==1?"s":""} · Saved {new Date(selectedDoc.created_at).toLocaleDateString()}
+                        {selectedDoc.language || "Unknown"} Â· {selectedDoc.file_count || 1} file{selectedDoc.file_count!==1?"s":""} Â· Saved {new Date(selectedDoc.created_at).toLocaleDateString()}
                       </p>
                     </div>
-                    <button className="secondary-btn" onClick={() => setSelectedDoc(null)}>← Back to Saved Docs</button>
+                    <button className="secondary-btn" onClick={() => setSelectedDoc(null)}>â† Back to Saved Docs</button>
                   </div>
 
                   <div className="button-row" style={{marginTop:"18px"}}>
@@ -1331,33 +1331,33 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
           </div>
         )}
 
-        {/* ── GITHUB ── */}
+        {/* â”€â”€ GITHUB â”€â”€ */}
         {activeModule === "github" && (<>
           <section className="card">
-            <h2>🐙 GitHub Integration</h2>
+            <h2>ðŸ™ GitHub Integration</h2>
             <p className="helper-text">Paste a GitHub repository URL and DevFlow will create a fast architecture-level repository report for onboarding, review, and documentation.</p>
             <label className="upload-label">GitHub Repository URL</label>
             <input className="auth-input" style={{marginBottom:"12px",fontFamily:"monospace"}} placeholder="https://github.com/username/reponame" value={repoUrl} onChange={e=>setRepoUrl(e.target.value)} />
-            <label className="upload-label">GitHub Token (optional — for private repos)</label>
+            <label className="upload-label">GitHub Token (optional â€” for private repos)</label>
             <input className="auth-input" style={{marginBottom:"12px",fontFamily:"monospace"}} placeholder="ghp_xxxxxxxxxxxx (leave empty for public repos)" type="password" value={githubToken} onChange={e=>setGithubToken(e.target.value)} />
-            <p className="helper-text">For private repos: go to GitHub → Settings → Developer Settings → Personal Access Tokens → Generate new token (classic) → check <strong>repo</strong> scope.</p>
+            <p className="helper-text">For private repos: go to GitHub â†’ Settings â†’ Developer Settings â†’ Personal Access Tokens â†’ Generate new token (classic) â†’ check <strong>repo</strong> scope.</p>
             {repoLoading && <div className="loading-overlay"><div className="loading-card"><InfinitySpin width="220" color="#2563eb"/><h2>Fetching Repository...</h2><p>Scanning key files and generating a fast repository summary...</p></div></div>}
             <div className="button-row">
               <button onClick={handleGithubDocument} disabled={repoLoading||!repoUrl.trim()}>{repoLoading?"Fetching...":"Generate Fast Repo Docs"}</button>
               <button className="secondary-btn" onClick={()=>{if(!repoDoc){toast.error("Generate GitHub docs first.");return;}navigator.clipboard.writeText(cleanDoc(repoDoc));toast.success("Copied!");}} disabled={!repoDoc}>Copy</button>
               <button className="secondary-btn" onClick={()=>{if(!repoDoc){toast.error("Generate GitHub docs first.");return;}downloadTextFile(repoDoc,"github-repository-documentation.md","text/markdown");toast.success("Markdown exported!");}} disabled={!repoDoc}>Markdown</button>
               <button className="secondary-btn" onClick={()=>exportContentAsPDF("GitHub Repository Documentation", repoDoc, "github-repository-documentation.pdf")} disabled={!repoDoc}>PDF</button>
-              <button className="secondary-btn" onClick={saveRepoDoc} disabled={!repoDoc||saving}>{saving?"Saving...":"💾 Save"}</button>
+              <button className="secondary-btn" onClick={saveRepoDoc} disabled={!repoDoc||saving}>{saving?"Saving...":"ðŸ’¾ Save"}</button>
               <button className="danger-btn" onClick={()=>{setRepoUrl("");setRepoDoc("");setRepoName("");}}>Clear</button>
             </div>
           </section>
           <section className="card docs-card">
-            <h2>Repository Documentation{repoName && <span style={{fontSize:"14px",color:"#64748b",marginLeft:"10px"}}>— {repoName}</span>}</h2>
+            <h2>Repository Documentation{repoName && <span style={{fontSize:"14px",color:"#64748b",marginLeft:"10px"}}>â€” {repoName}</span>}</h2>
             <pre className={`output-box ${!repoDoc?"empty-output":""}`}>{repoDoc||"Paste a GitHub URL and click Generate Docs.\n\nSupports:\n- Public repositories\n- Private repos (with token)\n- Any language"}</pre>
           </section>
         </>)}
 
-        {/* ── BILLING / USAGE ── */}
+        {/* â”€â”€ BILLING / USAGE â”€â”€ */}
         {activeModule === "billing" && (
           <div className="module-single-view">
             <section className="card billing-page">
@@ -1380,7 +1380,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
                 </div>
                 <div className="billing-summary-card">
                   <span>Billing period</span>
-                  <strong>{usageInfo?.period || "—"}</strong>
+                  <strong>{usageInfo?.period || "â€”"}</strong>
                 </div>
                 <div className="billing-summary-card">
                   <span>Subscription status</span>
@@ -1393,7 +1393,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
               </div>
 
               <div className={`billing-status-card ${billing.stripe_configured ? "ready" : "warning"}`}>
-                <div className="status-icon">{billing.stripe_configured ? "✓" : "!"}</div>
+                <div className="status-icon">{billing.stripe_configured ? "âœ“" : "!"}</div>
                 <div>
                   <strong>{billing.stripe_configured ? "Stripe is configured" : "Stripe is not configured yet"}</strong>
                   <p>
@@ -1468,11 +1468,11 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
           </div>
         )}
 
-        {/* ── TEAM ── */}
+        {/* â”€â”€ TEAM â”€â”€ */}
         {activeModule === "team" && (
           <div className="module-single-view">
             <section className="card docs-card">
-              <h2>👥 Team — {workspace.name}</h2>
+              <h2>ðŸ‘¥ Team â€” {workspace.name}</h2>
               <p className="helper-text">Invite team members to collaborate on this workspace. They need to have a DevFlow account first.</p>
               <div className="invite-row">
                 <input className="auth-input" style={{marginBottom:0,flex:1}} placeholder="Enter teammate's email address" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&inviteMember()} />
@@ -1492,9 +1492,9 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// ROOT — controls which screen to show
-// ═════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ROOT â€” controls which screen to show
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 export default function App() {
   const [user, setUser] = useState(null);
   const [workspace, setWorkspace] = useState(null);
@@ -1617,3 +1617,4 @@ export default function App() {
   if (!workspace) return (<><Toaster position="top-right"/><WorkspaceSelector user={user} onSelect={setWorkspace} onLogout={handleLogout} onAuthExpired={handleAuthExpired}/></>);
   return (<><Toaster position="top-right"/><MainApp user={user} workspace={workspace} onSwitchWorkspace={()=>setWorkspace(null)} onLogout={handleLogout} onAuthExpired={handleAuthExpired}/></>);
 }
+
