@@ -6,7 +6,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-app = Flask(__name__, static_folder="static", static_url_path="")
+# Railway/production React build serving
+# Prefer frontend/build because Create React App references assets as /static/js/... and /static/css/...
+# If frontend/build is not available, fall back to root static for older deployments.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_BUILD_DIR = os.path.join(BASE_DIR, "frontend", "build")
+ROOT_STATIC_DIR = os.path.join(BASE_DIR, "static")
+REACT_BUILD_DIR = (
+    FRONTEND_BUILD_DIR
+    if os.path.exists(os.path.join(FRONTEND_BUILD_DIR, "index.html"))
+    else ROOT_STATIC_DIR
+)
+
+app = Flask(__name__, static_folder=REACT_BUILD_DIR, static_url_path="")
 app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_CONTENT_LENGTH", 5 * 1024 * 1024))
 MAX_CODE_CHARS = int(os.getenv("MAX_CODE_CHARS", "1200000"))
 
@@ -21,7 +33,7 @@ GROQ_URL             = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL           = "llama-3.3-70b-versatile"
 SUPABASE_URL         = os.getenv("SUPABASE_URL", "")
 SUPABASE_ANON_KEY    = os.getenv("SUPABASE_ANON_KEY", "")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "") or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
 # Phase 4: Stripe billing configuration
 STRIPE_SECRET_KEY      = os.getenv("STRIPE_SECRET_KEY", "")
@@ -1780,17 +1792,84 @@ def generate_tasks():
 
 # ── Static serving ─────────────────────────────────────────────────────────────
 @app.errorhandler(413)
-def too_large(e): return jsonify({"ok": False, "error": "Payload too large."}), 413
+def too_large(e):
+    return jsonify({"ok": False, "error": "Payload too large."}), 413
+
+
 @app.errorhandler(404)
-def not_found(e): return send_from_directory(app.static_folder, "index.html")
+def not_found(e):
+    """Serve React routes only for frontend paths.
+
+    Important Railway fix:
+    If /static/js/main...js is missing, we must not silently return index.html
+    as JavaScript because that creates: Unexpected token '<'.
+    """
+    api_prefixes = (
+        "/auth", "/billing", "/stripe", "/workspaces", "/documents",
+        "/github", "/health", "/generate-doc", "/analyze-bug",
+        "/project-health", "/generate-tasks"
+    )
+
+    if request.path.startswith(api_prefixes):
+        return jsonify({"success": False, "error": "Route not found"}), 404
+
+    if request.path.startswith("/static/"):
+        return jsonify({
+            "success": False,
+            "error": "React static asset not found. Rebuild frontend and commit frontend/build."
+        }), 404
+
+    index_path = os.path.join(app.static_folder, "index.html")
+    if os.path.exists(index_path):
+        return send_from_directory(app.static_folder, "index.html")
+
+    return jsonify({
+        "success": False,
+        "error": "Frontend build not found. Run npm run build inside frontend and commit frontend/build."
+    }), 500
+
+
 @app.errorhandler(500)
-def server_error(e): return jsonify({"ok": False, "error": "Internal server error."}), 500
+def server_error(e):
+    return jsonify({"ok": False, "error": "Internal server error."}), 500
+
+
 @app.route("/")
-def serve_home(): return send_from_directory(app.static_folder, "index.html")
+def serve_home():
+    index_path = os.path.join(app.static_folder, "index.html")
+    if os.path.exists(index_path):
+        return send_from_directory(app.static_folder, "index.html")
+    return jsonify({
+        "success": False,
+        "error": "Frontend build not found. Run npm run build inside frontend and commit frontend/build."
+    }), 500
+
+
 @app.route("/<path:path>")
 def serve_static(path):
-    fp = os.path.join(app.static_folder, path)
-    return send_from_directory(app.static_folder, path) if os.path.exists(fp) else send_from_directory(app.static_folder, "index.html")
+    # React build assets are referenced as /static/js/... and /static/css/...
+    # When app.static_folder = frontend/build, these files exist at frontend/build/static/js/...
+    requested_file = os.path.join(app.static_folder, path)
+
+    if os.path.isfile(requested_file):
+        return send_from_directory(app.static_folder, path)
+
+    # Never return index.html for real asset requests.
+    # Returning HTML for JS/CSS causes a blank page and "Unexpected token '<'".
+    if path.startswith("static/") or "." in os.path.basename(path):
+        return jsonify({
+            "success": False,
+            "error": f"Static file not found: {path}. Rebuild frontend and commit frontend/build."
+        }), 404
+
+    index_path = os.path.join(app.static_folder, "index.html")
+    if os.path.exists(index_path):
+        return send_from_directory(app.static_folder, "index.html")
+
+    return jsonify({
+        "success": False,
+        "error": "Frontend build not found. Run npm run build inside frontend and commit frontend/build."
+    }), 500
 
 
 if __name__ == "__main__":
