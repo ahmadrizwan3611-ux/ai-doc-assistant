@@ -542,7 +542,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  const [savedDocs, setSavedDocs] = useState([]);
  const [docsLoading, setDocsLoading] = useState(false);
  const [selectedDoc, setSelectedDoc] = useState(null);
- const [docOpening, setDocOpening] = useState(false);
+ const [openingDocId, setOpeningDocId] = useState(null);
  const [saving, setSaving] = useState(false);
  const [repoUrl, setRepoUrl] = useState("");
  const [githubToken, setGithubToken] = useState("");
@@ -755,21 +755,22 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  };
 
  const openSavedDoc = async (docId) => {
- setDocOpening(true);
- try {
- const r = await authFetch(`/documents/${docId}`, { method: "GET" }, onAuthExpired);
- const d = await safeJson(r);
- if (r.status === 401) return;
- if (!r.ok || d.error) { toast.error(d.error || "Could not open document."); return; }
- setSelectedDoc(d.document);
- } catch {
- toast.error("Could not open document.");
- } finally {
- setDocOpening(false);
- }
- };
-
- const saveWorkspaceDocument = async ({ title, language, content, file_count, successMessage }) => {
+    setOpeningDocId(docId);
+    try {
+      const r = await authFetch(`/documents/${docId}`, { method: "GET" }, onAuthExpired);
+      const d = await safeJson(r);
+      if (r.status === 401) return;
+      if (!r.ok || d.error) {
+        toast.error(d.error || "Could not open document.");
+        return;
+      }
+      setSelectedDoc(d.document);
+    } catch {
+      toast.error("Could not open document.");
+    } finally {
+      setOpeningDocId(null);
+    }
+  }; const saveWorkspaceDocument = async ({ title, language, content, file_count, successMessage }) => {
  if (!content) { toast.error("Nothing to save yet."); return; }
  setSaving(true);
  try {
@@ -886,9 +887,25 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  catch { toast.error("Failed to read dropped files."); }
  };
 
- const cleanDoc = text => String(text||"").replace(/```python/g,"").replace(/```javascript/g,"").replace(/```/g,"").replace(/### /g,"").replace(/## /g,"").replace(/`/g,"");
+ const cleanDoc = (text) => {
+    let value = String(text || "");
 
- const handleGenerateDoc = async () => {
+    value = value
+      .replace(/```(?:python|javascript|js|jsx|ts|tsx|json|bash|shell|html|css)?/gi, "")
+      .replace(/```/g, "")
+      .replace(/={5,}/g, "")
+      .replace(/-{8,}/g, "")
+      .replace(/AI Notice:\s*Request too large[\s\S]*?(?=\n#|\n[A-Z][A-Za-z ]+\n|$)/gi, "")
+      .replace(/org_[a-z0-9_]+/gi, "[provider-id-hidden]")
+      .replace(/https:\/\/console\.groq\.com\/settings\/billing/gi, "")
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
+    return value;
+  }; const handleGenerateDoc = async () => {
  if (!code.trim()) { showError("Please paste code or upload a project first."); return; }
  setLoading(true); setDoc(""); setLang(""); setErrorMessage("");
  try {
@@ -958,62 +975,149 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  };
 
  const handleExportPDF = () => {
- if (!doc) { toast.error("Generate documentation first."); return; }
- const pdf = new jsPDF("p","mm","a4");
- const pw = pdf.internal.pageSize.getWidth(); const ph = pdf.internal.pageSize.getHeight();
- const margin = 14; let y = 18; let page = 1;
- const footer = () => { pdf.setFont("helvetica","normal"); pdf.setFontSize(8); pdf.text(`Page ${page}`, pw-margin-15, ph-8); };
- pdf.setFont("helvetica","bold"); pdf.setFontSize(18); pdf.text("DevFlow",margin,y); y+=8;
- pdf.setFont("helvetica","normal"); pdf.setFontSize(10); pdf.text("Generated Documentation",margin,y); y+=10;
- pdf.setFont("courier","normal"); pdf.setFontSize(9);
- pdf.splitTextToSize(cleanDoc(doc), pw-margin*2).forEach(line => {
- if (y > ph-15) { footer(); pdf.addPage(); page++; y=18; pdf.setFont("courier","normal"); pdf.setFontSize(9); }
- pdf.text(line,margin,y); y+=5;
- });
- footer(); pdf.save("devflow-documentation.pdf"); toast.success("PDF exported!");
- };
+    if (!doc) {
+      toast.error("Generate documentation first.");
+      return;
+    }
+    exportContentAsPDF("DevFlow Documentation", doc, "devflow-documentation.pdf");
+  }; const exportContentAsPDF = (title, content, fileNameToSave) => {
+    if (!content) {
+      toast.error("Nothing to export yet.");
+      return;
+    }
 
- const exportContentAsPDF = (title, content, fileNameToSave) => {
- if (!content) { toast.error("Nothing to export yet."); return; }
- const pdf = new jsPDF("p", "mm", "a4");
- const pw = pdf.internal.pageSize.getWidth();
- const ph = pdf.internal.pageSize.getHeight();
- const margin = 14;
- let y = 18;
- let page = 1;
- const footer = () => {
- pdf.setFont("helvetica", "normal");
- pdf.setFontSize(8);
- pdf.text(`Page ${page}`, pw - margin - 15, ph - 8);
- };
- pdf.setFont("helvetica", "bold");
- pdf.setFontSize(18);
- pdf.text("DevFlow", margin, y);
- y += 8;
- pdf.setFont("helvetica", "normal");
- pdf.setFontSize(10);
- pdf.text(title, margin, y);
- y += 10;
- pdf.setFont("courier", "normal");
- pdf.setFontSize(9);
- pdf.splitTextToSize(cleanDoc(content), pw - margin * 2).forEach(line => {
- if (y > ph - 15) {
- footer();
- pdf.addPage();
- page += 1;
- y = 18;
- pdf.setFont("courier", "normal");
- pdf.setFontSize(9);
- }
- pdf.text(line, margin, y);
- y += 5;
- });
- footer();
- pdf.save(fileNameToSave);
- toast.success("PDF exported!");
- };
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 18;
+    const contentWidth = pageWidth - margin * 2;
+    let y = 22;
+    let page = 1;
 
- const saveRepoDoc = async () => {
+    const safeTitle = String(title || "DevFlow Documentation").replace(/[-_]+/g, " ").trim();
+    const prepared = cleanDoc(content);
+
+    const addFooter = () => {
+      pdf.setDrawColor(226, 232, 240);
+      pdf.line(margin, pageHeight - 16, pageWidth - margin, pageHeight - 16);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text("Generated by DevFlow", margin, pageHeight - 10);
+      pdf.text(`Page ${page}`, pageWidth - margin - 16, pageHeight - 10);
+    };
+
+    const addPage = () => {
+      addFooter();
+      pdf.addPage();
+      page += 1;
+      y = 22;
+    };
+
+    const ensureSpace = (needed = 8) => {
+      if (y + needed > pageHeight - 22) addPage();
+    };
+
+    const writeWrapped = (text, options = {}) => {
+      const { size = 10.5, style = "normal", color = [30, 41, 59], spacing = 5.4, before = 0, after = 2, indent = 0 } = options;
+      if (before) y += before;
+      pdf.setFont("helvetica", style);
+      pdf.setFontSize(size);
+      pdf.setTextColor(color[0], color[1], color[2]);
+      const lines = pdf.splitTextToSize(String(text || ""), contentWidth - indent);
+      lines.forEach(line => {
+        ensureSpace(spacing + 2);
+        pdf.text(line, margin + indent, y);
+        y += spacing;
+      });
+      if (after) y += after;
+    };
+
+    pdf.setFillColor(15, 23, 42);
+    pdf.roundedRect(margin, 14, contentWidth, 34, 4, 4, "F");
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(20);
+    pdf.setTextColor(255, 255, 255);
+    pdf.text("DevFlow", margin + 8, 27);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9.5);
+    pdf.setTextColor(203, 213, 225);
+    pdf.text("AI-powered developer documentation", margin + 8, 38);
+
+    y = 60;
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(18);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text(safeTitle, margin, y);
+    y += 8;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9.5);
+    pdf.setTextColor(100, 116, 139);
+    pdf.text(`Exported ${new Date().toLocaleDateString()}`, margin, y);
+    y += 12;
+
+    const lines = prepared.split("\n");
+
+    lines.forEach(rawLine => {
+      let line = rawLine.trimEnd();
+      if (!line.trim()) {
+        y += 3;
+        return;
+      }
+
+      if (/^#\s+/.test(line)) {
+        ensureSpace(18);
+        y += 4;
+        writeWrapped(line.replace(/^#\s+/, ""), { size: 16, style: "bold", color: [15, 23, 42], spacing: 7, after: 2 });
+        pdf.setDrawColor(37, 99, 235);
+        pdf.line(margin, y, pageWidth - margin, y);
+        y += 5;
+        return;
+      }
+
+      if (/^##\s+/.test(line)) {
+        ensureSpace(14);
+        writeWrapped(line.replace(/^##\s+/, ""), { size: 13, style: "bold", color: [30, 64, 175], spacing: 6, before: 4, after: 2 });
+        return;
+      }
+
+      if (/^###\s+/.test(line)) {
+        ensureSpace(12);
+        writeWrapped(line.replace(/^###\s+/, ""), { size: 11.5, style: "bold", color: [15, 23, 42], spacing: 5.8, before: 2, after: 1 });
+        return;
+      }
+
+      if (/^\|\s*[-:]+/.test(line)) return;
+
+      if (/^\|/.test(line)) {
+        const cells = line.split("|").map(x => x.trim()).filter(Boolean);
+        if (cells.length >= 2) {
+          ensureSpace(8);
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(9.5);
+          pdf.setTextColor(71, 85, 105);
+          pdf.text(`${cells[0]}:`, margin, y);
+          pdf.setFont("helvetica", "normal");
+          pdf.setTextColor(15, 23, 42);
+          pdf.text(String(cells.slice(1).join(" | ")).slice(0, 95), margin + 36, y);
+          y += 5.5;
+          return;
+        }
+      }
+
+      if (/^[-*]\s+/.test(line)) {
+        writeWrapped(line.replace(/^[-*]\s+/, "- "), { size: 10.2, color: [30, 41, 59], spacing: 5.2, indent: 3, after: 0.5 });
+        return;
+      }
+
+      writeWrapped(line, { size: 10.3, color: [30, 41, 59], spacing: 5.3, after: 1 });
+    });
+
+    addFooter();
+    pdf.save(fileNameToSave || "devflow-documentation.pdf");
+    toast.success("Premium PDF exported!");
+  }; const saveRepoDoc = async () => {
  if (!repoDoc) { toast.error("Generate GitHub documentation first."); return; }
  setSaving(true);
  try {
@@ -1293,8 +1397,8 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <span>{d.language} {d.file_count} file{d.file_count!==1?"s":""} {new Date(d.created_at).toLocaleDateString()}</span>
  </div>
  <div style={{display:"flex",gap:"10px",flexWrap:"wrap"}}>
- <button className="secondary-btn small-btn" onClick={() => openSavedDoc(d.id)} disabled={docOpening}>
- {docOpening ? "Opening..." : "Open"}
+ <button className="secondary-btn small-btn" onClick={() => openSavedDoc(d.id)} disabled={openingDocId === d.id}>
+ {openingDocId === d.id ? "Opening..." : "Open"}
  </button>
  <button className="danger-btn small-btn" onClick={() => deleteDoc(d.id)}>Delete</button>
  </div>
