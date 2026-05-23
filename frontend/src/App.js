@@ -5,6 +5,15 @@ import toast, { Toaster } from "react-hot-toast";
 import { InfinitySpin } from "react-loader-spinner";
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || ((typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) ? "http://127.0.0.1:5000" : window.location.origin);
+
+const formatPlanName = (plan) => {
+  const value = String(plan || "free").toLowerCase();
+  if (value === "pro") return "PRO";
+  if (value === "team") return "TEAM";
+  return "FREE";
+};
+
+
 const MAX_FILE_SIZE_MB = 2;
 const MAX_TOTAL_FILES = 80;
 
@@ -891,11 +900,14 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
     let value = String(text || "");
 
     value = value
-      .replace(/```(?:python|javascript|js|jsx|ts|tsx|json|bash|shell|html|css)?/gi, "")
+      .replace(/\r\n/g, "\n")
+      .replace(/```(?:python|javascript|js|jsx|ts|tsx|json|bash|shell|html|css|markdown|md)?/gi, "")
       .replace(/```/g, "")
-      .replace(/={5,}/g, "")
-      .replace(/-{8,}/g, "")
+      .replace(/^\s*---\s*FILE:\s*(.*?)\s*---\s*$/gim, "\n# $1\n")
+      .replace(/^\s*[-=]{6,}\s*$/gm, "")
       .replace(/AI Notice:\s*Request too large[\s\S]*?(?=\n#|\n[A-Z][A-Za-z ]+\n|$)/gi, "")
+      .replace(/The model request is too large[\s\S]*?(?=\n#|\n[A-Z][A-Za-z ]+\n|$)/gi, "")
+      .replace(/Request too large[\s\S]*?(?=\n#|\n[A-Z][A-Za-z ]+\n|$)/gi, "")
       .replace(/org_[a-z0-9_]+/gi, "[provider-id-hidden]")
       .replace(/https:\/\/console\.groq\.com\/settings\/billing/gi, "")
       .replace(/\*\*(.*?)\*\*/g, "$1")
@@ -1252,7 +1264,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <section style={{maxWidth:"1180px", margin:"18px auto 0", padding:"18px", background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:"20px", boxShadow:"0 10px 28px rgba(15, 23, 42, 0.06)"}}>
  <div style={{display:"flex", justifyContent:"space-between", gap:"16px", alignItems:"center", flexWrap:"wrap"}}>
  <div>
- <strong style={{fontSize:"18px"}}>Plan: {String(usageInfo.plan || "free").toUpperCase()}</strong>
+ <strong style={{fontSize:"18px"}}>Plan: {formatPlanName(usageInfo?.plan)}</strong>
  <p style={{margin:"4px 0 0", color:"#64748b"}}>Usage period: {usageInfo.period} {usageLoading ? " Refreshing..." : ""}</p>
  </div>
  <div style={{display:"flex", gap:"10px", flexWrap:"wrap"}}>
@@ -1381,7 +1393,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <section className="card docs-card">
  {!selectedDoc ? (
  <>
- <h2> Saved Documentation {workspace.name}</h2>
+ <h2>Saved Documentation - {workspace.name}</h2>
  <p className="helper-text">Open saved documentation, GitHub repo reports, export them, or delete old records.</p>
 
  {docsLoading ? (
@@ -1427,7 +1439,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  </div>
 
  <pre className={`output-box ${!selectedDoc.content?"empty-output":""}`}>
- {selectedDoc.content || "No document content found."}
+ {selectedDoc.content ? cleanDoc(selectedDoc.content) : "No document content found."}
  </pre>
  </>
  )}
@@ -1473,14 +1485,14 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  </div>
  <div className={`plan-pill plan-${currentPlan}`}>
  <span>Current plan</span>
- <strong>{currentPlan.toUpperCase()}</strong>
+ <strong>{formatPlanName(usageInfo?.plan)}</strong>
  </div>
  </div>
 
  <div className="billing-summary-grid">
  <div className="billing-summary-card">
  <span>Plan</span>
- <strong>{currentPlan.toUpperCase()}</strong>
+ <strong>{formatPlanName(usageInfo?.plan)}</strong>
  </div>
  <div className="billing-summary-card">
  <span>Billing period</span>
@@ -1576,7 +1588,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  {activeModule === "team" && (
  <div className="module-single-view">
  <section className="card docs-card">
- <h2>Team {workspace.name}</h2>
+ <h2>Team - {workspace.name}</h2>
  <p className="helper-text">Invite team members to collaborate on this workspace. They need to have a DevFlow account first.</p>
  <div className="invite-row">
  <input className="auth-input" style={{marginBottom:0,flex:1}} placeholder="Enter teammate's email address" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&inviteMember()} />
