@@ -507,49 +507,31 @@ def record_usage_event(user_id, feature, metadata=None):
 
 # ── AI wrappers ────────────────────────────────────────────────────────────────
 def generate_ai_documentation(code, file_name=""):
-    prompt = (
-        "You are a senior software architect and technical documentation engineer.\n\n"
-        "Generate clean, professional Markdown documentation for the source code below.\n\n"
-        "Formatting rules:\n"
-        "- Return Markdown only.\n"
-        "- Do not use long divider lines made from equals signs or hyphens.\n"
-        "- Do not include raw AI/provider errors.\n"
-        "- Use clear headings and short paragraphs.\n"
-        "- Use tables where helpful.\n"
-        "- Keep the tone professional, concise, and useful for developer onboarding.\n"
-        "- Do not over-explain obvious code.\n"
-        "- If the file is small, keep the documentation brief.\n\n"
-        "Required structure:\n\n"
-        "# File Overview\n\n"
-        "## Purpose\n"
-        "Explain what this file does in 2-4 sentences.\n\n"
-        "## Key Functions and Logic\n"
-        "Document important functions, classes, routes, handlers, or components.\n\n"
-        "For each function/component, use:\n"
-        "### name\n"
-        "- Purpose:\n"
-        "- Parameters:\n"
-        "- Returns:\n"
-        "- Notes:\n\n"
-        "## Architecture Notes\n"
-        "Explain how this file fits into the project.\n\n"
-        "## API Routes\n"
-        "List routes only if they exist. If none exist, write No API routes detected.\n\n"
-        "## Dependencies\n"
-        "List important imports/dependencies.\n\n"
-        "## Security and Reliability Notes\n"
-        "Mention validation, secrets, authentication, error handling, or risk areas if relevant.\n\n"
-        "## Suggested Improvements\n"
-        "Give practical improvements only.\n\n"
-        "## Setup or Usage\n"
-        "Explain how to run or use this file if possible.\n\n"
-        f"File name: {file_name}\n\n"
-        f"Source code:\n{code}\n"
-    )
+    prompt = f"""You are a senior software architect and technical documentation engineer.
+
+Analyze this source code and generate professional documentation.
+
+Include ALL sections:
+- Project / File Purpose
+- Function and Method Explanations (each function separately)
+- Architecture Overview
+- API Routes (if any)
+- Important Logic
+- Dependencies
+- Security Observations
+- Suggested Improvements
+- How to Run / Setup
+
+File Name: {file_name}
+
+Code:
+{code}
+"""
     result = call_groq(prompt, max_tokens=3000)
     return {"success": True, "doc": result["text"], "error": ""} if result["success"] else {"success": False, "doc": "", "error": result["error"]}
 
-def analyze_bug_with_aidef analyze_bug_with_ai(error_log):
+
+def analyze_bug_with_ai(error_log):
     prompt = f"""You are a senior software engineer specializing in debugging.
 
 Analyze this error log and explain it clearly.
@@ -1712,12 +1694,10 @@ def health_check():
 def generate_doc():
     try:
         data = request.get_json(silent=True) or {}
-        code = data.get("code", "")
-        file_name = data.get("fileName", "")
-
+        code = data.get("code","")
+        file_name = data.get("fileName","")
         if not isinstance(code, str) or not code.strip():
             return jsonify({"ok": False, "error": "No code provided."}), 400
-
         if len(code) > MAX_CODE_CHARS:
             return jsonify({"ok": False, "error": "Code is too large."}), 413
 
@@ -1727,57 +1707,36 @@ def generate_doc():
 
         uploaded_files = split_multiple_files(code) or [{"file_name": file_name or "uploaded-code.txt", "content": code}]
         all_docs, languages = [], []
-
         for file in uploaded_files:
             language = detect_language(file["content"], file["file_name"])
             languages.append(language)
             metrics = get_file_metrics(file["content"])
-
             if is_ai_enabled():
                 ai_result = generate_ai_documentation(file["content"], file["file_name"])
-                if ai_result["success"]:
-                    single_doc = ai_result["doc"].strip()
-                else:
-                    fallback_doc, fallback_language = analyze_single_file(file["content"], file["file_name"])
-                    language = fallback_language or language
-                    single_doc = fallback_doc.strip()
+                single_doc = ai_result["doc"] if ai_result["success"] else f"AI Notice: {ai_result['error']}\n\n" + analyze_single_file(file["content"], file["file_name"])[0]
             else:
                 single_doc, language = analyze_single_file(file["content"], file["file_name"])
-                single_doc = str(single_doc).strip()
-
-            clean_file_doc = "\n".join([
-                f"# {file['file_name']}",
-                "",
-                "| Detail | Value |",
-                "|---|---|",
-                f"| Language | {language} |",
-                f"| Total lines | {metrics['total_lines']} |",
-                f"| Non-empty lines | {metrics['non_empty_lines']} |",
-                "",
+            all_docs.append("\n".join([
+                "========================================",
+                f"FILE: {file['file_name']}", f"LANGUAGE: {language}",
+                "========================================", "",
+                f"- Total Lines: {metrics['total_lines']}",
+                f"- Non-empty Lines: {metrics['non_empty_lines']}", "",
                 single_doc,
-            ]).strip()
-
-            all_docs.append(clean_file_doc)
-
-        record_usage_event(request.user["id"], "documentation_generations", {
-            "source": "upload",
-            "file_count": len(uploaded_files),
-        })
-
+            ]))
+        record_usage_event(request.user["id"], "documentation_generations", {"source": "upload", "file_count": len(uploaded_files)})
         return jsonify({
-            "ok": True,
-            "doc": "\n\n".join(all_docs),
+            "ok": True, "doc": "\n\n".join(all_docs),
             "language": ", ".join(sorted(set(languages))),
-            "fileCount": len(uploaded_files),
-            "aiEnabled": is_ai_enabled(),
+            "fileCount": len(uploaded_files), "aiEnabled": is_ai_enabled(),
             "usage": build_usage_summary(request.user["id"]),
         })
-
-    except Exception:
+    except Exception as e:
         logger.exception("Error generating doc")
         return jsonify({"ok": False, "error": "Unexpected server error."}), 500
 
-@app.route("/analyze-bug"@app.route("/analyze-bug", methods=["POST"])
+
+@app.route("/analyze-bug", methods=["POST"])
 @require_auth
 def analyze_bug():
     data = request.get_json(silent=True) or {}
