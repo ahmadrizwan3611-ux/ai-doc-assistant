@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import "./App.css";
 import jsPDF from "jspdf";
 import toast, { Toaster } from "react-hot-toast";
@@ -8,1613 +8,1613 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || ((typeof window !== "undef
 const MAX_FILE_SIZE_MB = 2;
 const MAX_TOTAL_FILES = 80;
 
-// â”€â”€â”€ Auth helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Auth helpers 
 const getToken = () => localStorage.getItem("devflow_token");
 const getRefreshToken = () => localStorage.getItem("devflow_refresh_token");
 const getStoredUser = () => {
-  try {
-    return JSON.parse(localStorage.getItem("devflow_user"));
-  } catch {
-    return null;
-  }
+ try {
+ return JSON.parse(localStorage.getItem("devflow_user"));
+ } catch {
+ return null;
+ }
 };
 const setSession = ({ access_token, refresh_token, user }) => {
-  if (access_token) localStorage.setItem("devflow_token", access_token);
-  if (refresh_token) localStorage.setItem("devflow_refresh_token", refresh_token);
-  if (user) localStorage.setItem("devflow_user", JSON.stringify(user));
+ if (access_token) localStorage.setItem("devflow_token", access_token);
+ if (refresh_token) localStorage.setItem("devflow_refresh_token", refresh_token);
+ if (user) localStorage.setItem("devflow_user", JSON.stringify(user));
 };
 const clearSession = () => {
-  localStorage.removeItem("devflow_token");
-  localStorage.removeItem("devflow_refresh_token");
-  localStorage.removeItem("devflow_user");
+ localStorage.removeItem("devflow_token");
+ localStorage.removeItem("devflow_refresh_token");
+ localStorage.removeItem("devflow_user");
 };
 const authHeaders = () => {
-  const token = getToken();
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {})
-  };
+ const token = getToken();
+ return {
+ "Content-Type": "application/json",
+ ...(token ? { Authorization: `Bearer ${token}` } : {})
+ };
 };
 
 const safeJson = async (response) => {
-  try {
-    return await response.json();
-  } catch {
-    return {};
-  }
+ try {
+ return await response.json();
+ } catch {
+ return {};
+ }
 };
 
 const refreshSession = async () => {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
+ const refreshToken = getRefreshToken();
+ if (!refreshToken) return null;
 
-  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-  const data = await safeJson(response);
-  if (!response.ok || data.error || !data.access_token) {
-    clearSession();
-    return null;
-  }
-  setSession(data);
-  return data;
+ const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ refresh_token: refreshToken }),
+ });
+ const data = await safeJson(response);
+ if (!response.ok || data.error || !data.access_token) {
+ clearSession();
+ return null;
+ }
+ setSession(data);
+ return data;
 };
 
 const authFetch = async (path, options = {}, onAuthExpired) => {
-  const makeRequest = () => fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      ...authHeaders(),
-      ...(options.headers || {}),
-    },
-  });
+ const makeRequest = () => fetch(`${API_BASE_URL}${path}`, {
+ ...options,
+ headers: {
+ ...authHeaders(),
+ ...(options.headers || {}),
+ },
+ });
 
-  let response = await makeRequest();
-  if (response.status !== 401) return response;
+ let response = await makeRequest();
+ if (response.status !== 401) return response;
 
-  const refreshed = await refreshSession();
-  if (!refreshed) {
-    if (onAuthExpired) onAuthExpired();
-    return response;
-  }
+ const refreshed = await refreshSession();
+ if (!refreshed) {
+ if (onAuthExpired) onAuthExpired();
+ return response;
+ }
 
-  response = await makeRequest();
-  if (response.status === 401 && onAuthExpired) {
-    clearSession();
-    onAuthExpired();
-  }
-  return response;
+ response = await makeRequest();
+ if (response.status === 401 && onAuthExpired) {
+ clearSession();
+ onAuthExpired();
+ }
+ return response;
 };
 
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// SAAS LANDING PAGE â€” PUBLIC DEMO
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
+// SAAS LANDING PAGE PUBLIC DEMO
+// 
 function LandingPage({ onStart }) {
-  const features = [
-    {
-      title: "AI Documentation",
-      text: "Generate professional documentation from files, folders, or GitHub repositories."
-    },
-    {
-      title: "Bug Analyzer",
-      text: "Paste any error log and get root cause, fix steps, and prevention guidance."
-    },
-    {
-      title: "Project Health",
-      text: "Scan codebases for risks, missing files, security notes, and production readiness."
-    },
-    {
-      title: "Team Workspaces",
-      text: "Create shared company workspaces, save docs, and keep project knowledge organized."
-    }
-  ];
+ const features = [
+ {
+ title: "AI Documentation",
+ text: "Generate professional documentation from files, folders, or GitHub repositories."
+ },
+ {
+ title: "Bug Analyzer",
+ text: "Paste any error log and get root cause, fix steps, and prevention guidance."
+ },
+ {
+ title: "Project Health",
+ text: "Scan codebases for risks, missing files, security notes, and production readiness."
+ },
+ {
+ title: "Team Workspaces",
+ text: "Create shared company workspaces, save docs, and keep project knowledge organized."
+ }
+ ];
 
-  const pricing = [
-    {
-      name: "Free",
-      price: "$0",
-      note: "For trying DevFlow",
-      items: ["5 AI docs/month", "1 workspace", "Bug Analyzer", "Project Health", "Markdown/PDF export"]
-    },
-    {
-      name: "Pro",
-      price: "$19",
-      note: "For active developers",
-      items: ["Unlimited docs", "GitHub repo documentation", "3 workspaces", "Saved docs history", "Priority AI responses"]
-    },
-    {
-      name: "Team",
-      price: "$49",
-      note: "For growing software teams",
-      items: ["Unlimited workspaces", "Team members", "Code Review Assistant", "Jira/Trello roadmap", "Admin and audit features"]
-    }
-  ];
+ const pricing = [
+ {
+ name: "Free",
+ price: "$0",
+ note: "For trying DevFlow",
+ items: ["5 AI docs/month", "1 workspace", "Bug Analyzer", "Project Health", "Markdown/PDF export"]
+ },
+ {
+ name: "Pro",
+ price: "$19",
+ note: "For active developers",
+ items: ["Unlimited docs", "GitHub repo documentation", "3 workspaces", "Saved docs history", "Priority AI responses"]
+ },
+ {
+ name: "Team",
+ price: "$49",
+ note: "For growing software teams",
+ items: ["Unlimited workspaces", "Team members", "Code Review Assistant", "Jira/Trello roadmap", "Admin and audit features"]
+ }
+ ];
 
-  const sectionStyle = {
-    width: "100%",
-    maxWidth: "1180px",
-    margin: "0 auto",
-    padding: "0 24px",
-    boxSizing: "border-box"
-  };
+ const sectionStyle = {
+ width: "100%",
+ maxWidth: "1180px",
+ margin: "0 auto",
+ padding: "0 24px",
+ boxSizing: "border-box"
+ };
 
-  return (
-    <div style={{ minHeight: "100vh", background: "#f4f7fb", color: "#0f172a" }}>
-      <nav style={{
-        ...sectionStyle,
-        paddingTop: "28px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: "16px",
-        flexWrap: "wrap"
-      }}>
-        <div style={{ fontSize: "34px", fontWeight: "900", color: "#2563eb" }}>DevFlow</div>
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <button
-            onClick={() => onStart("login")}
-            style={{
-              background: "#ffffff",
-              color: "#0f172a",
-              border: "1px solid #dbe3ef",
-              borderRadius: "14px",
-              padding: "12px 18px",
-              fontWeight: "800",
-              cursor: "pointer"
-            }}
-          >
-            Log In
-          </button>
-          <button
-            onClick={() => onStart("signup")}
-            style={{
-              background: "#2563eb",
-              color: "#ffffff",
-              border: "none",
-              borderRadius: "14px",
-              padding: "12px 18px",
-              fontWeight: "800",
-              cursor: "pointer"
-            }}
-          >
-            Start Free
-          </button>
-        </div>
-      </nav>
+ return (
+ <div style={{ minHeight: "100vh", background: "#f4f7fb", color: "#0f172a" }}>
+ <nav style={{
+ ...sectionStyle,
+ paddingTop: "28px",
+ display: "flex",
+ justifyContent: "space-between",
+ alignItems: "center",
+ gap: "16px",
+ flexWrap: "wrap"
+ }}>
+ <div style={{ fontSize: "34px", fontWeight: "900", color: "#2563eb" }}>DevFlow</div>
+ <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+ <button
+ onClick={() => onStart("login")}
+ style={{
+ background: "#ffffff",
+ color: "#0f172a",
+ border: "1px solid #dbe3ef",
+ borderRadius: "14px",
+ padding: "12px 18px",
+ fontWeight: "800",
+ cursor: "pointer"
+ }}
+ >
+ Log In
+ </button>
+ <button
+ onClick={() => onStart("signup")}
+ style={{
+ background: "#2563eb",
+ color: "#ffffff",
+ border: "none",
+ borderRadius: "14px",
+ padding: "12px 18px",
+ fontWeight: "800",
+ cursor: "pointer"
+ }}
+ >
+ Start Free
+ </button>
+ </div>
+ </nav>
 
-      <section style={{
-        ...sectionStyle,
-        paddingTop: "76px",
-        paddingBottom: "56px",
-        textAlign: "center"
-      }}>
-        <div style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "8px",
-          background: "#e8f0ff",
-          color: "#1d4ed8",
-          padding: "10px 16px",
-          borderRadius: "999px",
-          fontWeight: "800",
-          marginBottom: "22px"
-        }}>
-          AI-powered developer workspace for software teams
-        </div>
+ <section style={{
+ ...sectionStyle,
+ paddingTop: "76px",
+ paddingBottom: "56px",
+ textAlign: "center"
+ }}>
+ <div style={{
+ display: "inline-flex",
+ alignItems: "center",
+ gap: "8px",
+ background: "#e8f0ff",
+ color: "#1d4ed8",
+ padding: "10px 16px",
+ borderRadius: "999px",
+ fontWeight: "800",
+ marginBottom: "22px"
+ }}>
+ AI-powered developer workspace for software teams
+ </div>
 
-        <h1 style={{
-          fontSize: "clamp(42px, 7vw, 82px)",
-          lineHeight: "1.02",
-          margin: "0 auto",
-          maxWidth: "980px",
-          letterSpacing: "-0.05em"
-        }}>
-          Turn any codebase into docs, tasks, health reports, and team knowledge.
-        </h1>
+ <h1 style={{
+ fontSize: "clamp(42px, 7vw, 82px)",
+ lineHeight: "1.02",
+ margin: "0 auto",
+ maxWidth: "980px",
+ letterSpacing: "-0.05em"
+ }}>
+ Turn any codebase into docs, tasks, health reports, and team knowledge.
+ </h1>
 
-        <p style={{
-          maxWidth: "820px",
-          margin: "24px auto 0",
-          color: "#64748b",
-          fontSize: "22px",
-          lineHeight: "1.65"
-        }}>
-          DevFlow helps software companies reduce knowledge loss, speed up onboarding, analyze bugs,
-          and document GitHub repositories inside shared team workspaces.
-        </p>
+ <p style={{
+ maxWidth: "820px",
+ margin: "24px auto 0",
+ color: "#64748b",
+ fontSize: "22px",
+ lineHeight: "1.65"
+ }}>
+ DevFlow helps software companies reduce knowledge loss, speed up onboarding, analyze bugs,
+ and document GitHub repositories inside shared team workspaces.
+ </p>
 
-        <div style={{
-          display: "flex",
-          justifyContent: "center",
-          gap: "14px",
-          flexWrap: "wrap",
-          marginTop: "34px"
-        }}>
-          <button
-            onClick={() => onStart("signup")}
-            style={{
-              background: "#2563eb",
-              color: "#ffffff",
-              border: "none",
-              borderRadius: "16px",
-              padding: "16px 26px",
-              fontWeight: "900",
-              fontSize: "17px",
-              cursor: "pointer",
-              boxShadow: "0 14px 30px rgba(37, 99, 235, 0.22)"
-            }}
-          >
-            Create Free Workspace
-          </button>
-          <button
-            onClick={() => onStart("login")}
-            style={{
-              background: "#ffffff",
-              color: "#0f172a",
-              border: "1px solid #dbe3ef",
-              borderRadius: "16px",
-              padding: "16px 26px",
-              fontWeight: "900",
-              fontSize: "17px",
-              cursor: "pointer"
-            }}
-          >
-            I already have an account
-          </button>
-        </div>
-      </section>
+ <div style={{
+ display: "flex",
+ justifyContent: "center",
+ gap: "14px",
+ flexWrap: "wrap",
+ marginTop: "34px"
+ }}>
+ <button
+ onClick={() => onStart("signup")}
+ style={{
+ background: "#2563eb",
+ color: "#ffffff",
+ border: "none",
+ borderRadius: "16px",
+ padding: "16px 26px",
+ fontWeight: "900",
+ fontSize: "17px",
+ cursor: "pointer",
+ boxShadow: "0 14px 30px rgba(37, 99, 235, 0.22)"
+ }}
+ >
+ Create Free Workspace
+ </button>
+ <button
+ onClick={() => onStart("login")}
+ style={{
+ background: "#ffffff",
+ color: "#0f172a",
+ border: "1px solid #dbe3ef",
+ borderRadius: "16px",
+ padding: "16px 26px",
+ fontWeight: "900",
+ fontSize: "17px",
+ cursor: "pointer"
+ }}
+ >
+ I already have an account
+ </button>
+ </div>
+ </section>
 
-      <section style={{
-        ...sectionStyle,
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-        gap: "18px",
-        paddingBottom: "54px"
-      }}>
-        {features.map((feature) => (
-          <div key={feature.title} style={{
-            background: "#ffffff",
-            border: "1px solid #e2e8f0",
-            borderRadius: "24px",
-            padding: "26px",
-            boxShadow: "0 14px 38px rgba(15, 23, 42, 0.06)"
-          }}>
-            <h3 style={{ margin: "0 0 10px", fontSize: "22px" }}>{feature.title}</h3>
-            <p style={{ margin: 0, color: "#64748b", lineHeight: "1.65", fontSize: "15px" }}>{feature.text}</p>
-          </div>
-        ))}
-      </section>
+ <section style={{
+ ...sectionStyle,
+ display: "grid",
+ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+ gap: "18px",
+ paddingBottom: "54px"
+ }}>
+ {features.map((feature) => (
+ <div key={feature.title} style={{
+ background: "#ffffff",
+ border: "1px solid #e2e8f0",
+ borderRadius: "24px",
+ padding: "26px",
+ boxShadow: "0 14px 38px rgba(15, 23, 42, 0.06)"
+ }}>
+ <h3 style={{ margin: "0 0 10px", fontSize: "22px" }}>{feature.title}</h3>
+ <p style={{ margin: 0, color: "#64748b", lineHeight: "1.65", fontSize: "15px" }}>{feature.text}</p>
+ </div>
+ ))}
+ </section>
 
-      <section style={{ ...sectionStyle, paddingBottom: "64px" }}>
-        <div style={{
-          background: "#0f172a",
-          color: "#ffffff",
-          borderRadius: "30px",
-          padding: "34px",
-          boxShadow: "0 18px 50px rgba(15, 23, 42, 0.18)"
-        }}>
-          <h2 style={{ margin: "0 0 10px", fontSize: "34px" }}>Simple pricing for modern software teams</h2>
-          <p style={{ color: "#cbd5e1", margin: "0 0 24px", fontSize: "17px", lineHeight: "1.6" }}>
-            Start free, upgrade when your team needs more workspaces, unlimited AI documentation, and company-ready collaboration.
-          </p>
+ <section style={{ ...sectionStyle, paddingBottom: "64px" }}>
+ <div style={{
+ background: "#0f172a",
+ color: "#ffffff",
+ borderRadius: "30px",
+ padding: "34px",
+ boxShadow: "0 18px 50px rgba(15, 23, 42, 0.18)"
+ }}>
+ <h2 style={{ margin: "0 0 10px", fontSize: "34px" }}>Simple pricing for modern software teams</h2>
+ <p style={{ color: "#cbd5e1", margin: "0 0 24px", fontSize: "17px", lineHeight: "1.6" }}>
+ Start free, upgrade when your team needs more workspaces, unlimited AI documentation, and company-ready collaboration.
+ </p>
 
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-            gap: "16px"
-          }}>
-            {pricing.map((plan, index) => (
-              <div key={plan.name} style={{
-                background: index === 1 ? "#2563eb" : "#ffffff",
-                color: index === 1 ? "#ffffff" : "#0f172a",
-                borderRadius: "22px",
-                padding: "24px"
-              }}>
-                <h3 style={{ margin: 0, fontSize: "24px" }}>{plan.name}</h3>
-                <div style={{ fontSize: "42px", fontWeight: "900", marginTop: "12px" }}>{plan.price}</div>
-                <p style={{ color: index === 1 ? "#dbeafe" : "#64748b", margin: "4px 0 18px" }}>{plan.note}</p>
-                <ul style={{ paddingLeft: "18px", margin: 0, lineHeight: "1.9" }}>
-                  {plan.items.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    </div>
-  );
+ <div style={{
+ display: "grid",
+ gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+ gap: "16px"
+ }}>
+ {pricing.map((plan, index) => (
+ <div key={plan.name} style={{
+ background: index === 1 ? "#2563eb" : "#ffffff",
+ color: index === 1 ? "#ffffff" : "#0f172a",
+ borderRadius: "22px",
+ padding: "24px"
+ }}>
+ <h3 style={{ margin: 0, fontSize: "24px" }}>{plan.name}</h3>
+ <div style={{ fontSize: "42px", fontWeight: "900", marginTop: "12px" }}>{plan.price}</div>
+ <p style={{ color: index === 1 ? "#dbeafe" : "#64748b", margin: "4px 0 18px" }}>{plan.note}</p>
+ <ul style={{ paddingLeft: "18px", margin: 0, lineHeight: "1.9" }}>
+ {plan.items.map((item) => <li key={item}>{item}</li>)}
+ </ul>
+ </div>
+ ))}
+ </div>
+ </div>
+ </section>
+ </div>
+ );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // AUTH SCREEN
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 function AuthScreen({ onLogin, initialMode = "login", onBackToLanding }) {
-  const [mode, setMode]       = useState(initialMode); // "login" | "signup"
-  const [email, setEmail]     = useState("");
-  const [password, setPass]   = useState("");
-  const [fullName, setName]   = useState("");
-  const [loading, setLoading] = useState(false);
+ const [mode, setMode] = useState(initialMode); // "login" | "signup"
+ const [email, setEmail] = useState("");
+ const [password, setPass] = useState("");
+ const [fullName, setName] = useState("");
+ const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    setMode(initialMode);
-  }, [initialMode]);
+ useEffect(() => {
+ setMode(initialMode);
+ }, [initialMode]);
 
-  const handle = async () => {
-    if (!email || !password) { toast.error("Email and password required."); return; }
-    setLoading(true);
-    try {
-      const endpoint = mode === "login" ? "/auth/login" : "/auth/signup";
-      const body = mode === "login"
-        ? { email, password }
-        : { email, password, full_name: fullName };
+ const handle = async () => {
+ if (!email || !password) { toast.error("Email and password required."); return; }
+ setLoading(true);
+ try {
+ const endpoint = mode === "login" ? "/auth/login" : "/auth/signup";
+ const body = mode === "login"
+ ? { email, password }
+ : { email, password, full_name: fullName };
 
-      const r = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await r.json();
-      if (!r.ok || data.error) { toast.error(data.error || "Something went wrong."); return; }
+ const r = await fetch(`${API_BASE_URL}${endpoint}`, {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify(body),
+ });
+ const data = await r.json();
+ if (!r.ok || data.error) { toast.error(data.error || "Something went wrong."); return; }
 
-      if (mode === "signup") {
-        toast.success("Account created! Please check your email to confirm, then log in.");
-        setMode("login");
-      } else {
-        setSession(data);
-        toast.success("Welcome to DevFlow!");
-        onLogin(data.user);
-      }
-    } catch (e) {
-      toast.error("Could not connect to server.");
-    } finally {
-      setLoading(false);
-    }
-  };
+ if (mode === "signup") {
+ toast.success("Account created! Please check your email to confirm, then log in.");
+ setMode("login");
+ } else {
+ setSession(data);
+ toast.success("Welcome to DevFlow!");
+ onLogin(data.user);
+ }
+ } catch (e) {
+ toast.error("Could not connect to server.");
+ } finally {
+ setLoading(false);
+ }
+ };
 
-  return (
-    <div className="auth-screen">
-      <div className="auth-card">
-        <h1 className="auth-logo">DevFlow</h1>
-        <p className="auth-tagline">AI-powered developer workspace</p>
+ return (
+ <div className="auth-screen">
+ <div className="auth-card">
+ <h1 className="auth-logo">DevFlow</h1>
+ <p className="auth-tagline">AI-powered developer workspace</p>
 
-        {onBackToLanding && (
-          <button
-            type="button"
-            onClick={onBackToLanding}
-            style={{
-              background: "transparent",
-              color: "#2563eb",
-              border: "none",
-              padding: "0",
-              marginBottom: "18px",
-              fontWeight: "700",
-              cursor: "pointer"
-            }}
-          >
-            â† Back to landing page
-          </button>
-        )}
+ {onBackToLanding && (
+ <button
+ type="button"
+ onClick={onBackToLanding}
+ style={{
+ background: "transparent",
+ color: "#2563eb",
+ border: "none",
+ padding: "0",
+ marginBottom: "18px",
+ fontWeight: "700",
+ cursor: "pointer"
+ }}
+ >
+ Back to landing page
+ </button>
+ )}
 
-        <div className="auth-tabs">
-          <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Log In</button>
-          <button className={mode === "signup" ? "active" : ""} onClick={() => setMode("signup")}>Sign Up</button>
-        </div>
+ <div className="auth-tabs">
+ <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Log In</button>
+ <button className={mode === "signup" ? "active" : ""} onClick={() => setMode("signup")}>Sign Up</button>
+ </div>
 
-        {mode === "signup" && (
-          <input className="auth-input" placeholder="Full Name" value={fullName} onChange={e => setName(e.target.value)} />
-        )}
-        <input className="auth-input" placeholder="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-        <input className="auth-input" placeholder="Password" type="password" value={password} onChange={e => setPass(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && handle()} />
+ {mode === "signup" && (
+ <input className="auth-input" placeholder="Full Name" value={fullName} onChange={e => setName(e.target.value)} />
+ )}
+ <input className="auth-input" placeholder="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+ <input className="auth-input" placeholder="Password" type="password" value={password} onChange={e => setPass(e.target.value)}
+ onKeyDown={e => e.key === "Enter" && handle()} />
 
-        <button className="auth-btn" onClick={handle} disabled={loading}>
-          {loading ? "Please wait..." : mode === "login" ? "Log In" : "Create Account"}
-        </button>
-      </div>
-    </div>
-  );
+ <button className="auth-btn" onClick={handle} disabled={loading}>
+ {loading ? "Please wait..." : mode === "login" ? "Log In" : "Create Account"}
+ </button>
+ </div>
+ </div>
+ );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // WORKSPACE SELECTOR
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 function WorkspaceSelector({ user, onSelect, onLogout, onAuthExpired }) {
-  const [workspaces, setWorkspaces] = useState([]);
-  const [newName, setNewName]       = useState("");
-  const [loading, setLoading]       = useState(true);
-  const [creating, setCreating]     = useState(false);
-  const didLoad = useRef(false);
+ const [workspaces, setWorkspaces] = useState([]);
+ const [newName, setNewName] = useState("");
+ const [loading, setLoading] = useState(true);
+ const [creating, setCreating] = useState(false);
+ const didLoad = useRef(false);
 
-  useEffect(() => {
-    if (didLoad.current) return;
-    didLoad.current = true;
-    loadWorkspaces();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+ useEffect(() => {
+ if (didLoad.current) return;
+ didLoad.current = true;
+ loadWorkspaces();
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, []);
 
-  const loadWorkspaces = async () => {
-    setLoading(true);
-    try {
-      const r = await authFetch("/workspaces", { method: "GET" }, onAuthExpired);
-      const d = await safeJson(r);
+ const loadWorkspaces = async () => {
+ setLoading(true);
+ try {
+ const r = await authFetch("/workspaces", { method: "GET" }, onAuthExpired);
+ const d = await safeJson(r);
 
-      if (r.status === 401) return;
-      if (!r.ok || d.error) {
-        toast.error(d.error || "Could not load workspaces.");
-        setWorkspaces([]);
-        return;
-      }
-      setWorkspaces(d.workspaces || []);
-    } catch {
-      toast.error("Could not connect to server.");
-      setWorkspaces([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+ if (r.status === 401) return;
+ if (!r.ok || d.error) {
+ toast.error(d.error || "Could not load workspaces.");
+ setWorkspaces([]);
+ return;
+ }
+ setWorkspaces(d.workspaces || []);
+ } catch {
+ toast.error("Could not connect to server.");
+ setWorkspaces([]);
+ } finally {
+ setLoading(false);
+ }
+ };
 
-  const createWorkspace = async () => {
-    if (!newName.trim()) { toast.error("Enter a workspace name."); return; }
-    setCreating(true);
-    try {
-      const r = await authFetch("/workspaces", {
-        method: "POST",
-        body: JSON.stringify({ name: newName.trim() }),
-      }, onAuthExpired);
-      const d = await safeJson(r);
+ const createWorkspace = async () => {
+ if (!newName.trim()) { toast.error("Enter a workspace name."); return; }
+ setCreating(true);
+ try {
+ const r = await authFetch("/workspaces", {
+ method: "POST",
+ body: JSON.stringify({ name: newName.trim() }),
+ }, onAuthExpired);
+ const d = await safeJson(r);
 
-      if (r.status === 401) return;
-      if (r.status === 403 && d.limitReached) { toast.error(d.error || "Free plan workspace limit reached."); return; }
-      if (!r.ok || d.error) { toast.error(d.error || "Failed to create workspace."); return; }
+ if (r.status === 401) return;
+ if (r.status === 403 && d.limitReached) { toast.error(d.error || "Free plan workspace limit reached."); return; }
+ if (!r.ok || d.error) { toast.error(d.error || "Failed to create workspace."); return; }
 
-      toast.success("Workspace created!");
-      setWorkspaces(prev => [...prev, d.workspace]);
-      setNewName("");
-      onSelect(d.workspace);
-    } catch {
-      toast.error("Could not connect to server.");
-    } finally {
-      setCreating(false);
-    }
-  };
+ toast.success("Workspace created!");
+ setWorkspaces(prev => [...prev, d.workspace]);
+ setNewName("");
+ onSelect(d.workspace);
+ } catch {
+ toast.error("Could not connect to server.");
+ } finally {
+ setCreating(false);
+ }
+ };
 
-  return (
-    <div className="auth-screen">
-      <div className="auth-card workspace-card">
-        <div className="ws-header">
-          <h2>Your Workspaces</h2>
-          <button className="logout-btn" onClick={onLogout}>Log Out</button>
-        </div>
-        <p className="auth-tagline">Logged in as <strong>{user?.email}</strong></p>
+ return (
+ <div className="auth-screen">
+ <div className="auth-card workspace-card">
+ <div className="ws-header">
+ <h2>Your Workspaces</h2>
+ <button className="logout-btn" onClick={onLogout}>Log Out</button>
+ </div>
+ <p className="auth-tagline">Logged in as <strong>{user?.email}</strong></p>
 
-        {loading ? <p style={{textAlign:"center",color:"#64748b"}}>Loading workspaces...</p> : (
-          <>
-            {workspaces.length === 0 && <p style={{color:"#64748b",textAlign:"center"}}>No workspaces yet. Create one below.</p>}
-            <div className="ws-list">
-              {workspaces.map(ws => (
-                <button key={ws.id} className="ws-item" onClick={() => onSelect(ws)}>
-                  <span className="ws-name">{ws.name}</span>
-                  <span className="ws-role">{ws.role || "member"}</span>
-                </button>
-              ))}
-            </div>
+ {loading ? <p style={{textAlign:"center",color:"#64748b"}}>Loading workspaces...</p> : (
+ <>
+ {workspaces.length === 0 && <p style={{color:"#64748b",textAlign:"center"}}>No workspaces yet. Create one below.</p>}
+ <div className="ws-list">
+ {workspaces.map(ws => (
+ <button key={ws.id} className="ws-item" onClick={() => onSelect(ws)}>
+ <span className="ws-name">{ws.name}</span>
+ <span className="ws-role">{ws.role || "member"}</span>
+ </button>
+ ))}
+ </div>
 
-            <div className="ws-create">
-              <input className="auth-input" placeholder="New workspace name (e.g. My Team)" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && createWorkspace()} />
-              <button className="auth-btn" onClick={createWorkspace} disabled={creating}>
-                {creating ? "Creating..." : "+ Create Workspace"}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
+ <div className="ws-create">
+ <input className="auth-input" placeholder="New workspace name (e.g. My Team)" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && createWorkspace()} />
+ <button className="auth-btn" onClick={createWorkspace} disabled={creating}>
+ {creating ? "Creating..." : "+ Create Workspace"}
+ </button>
+ </div>
+ </>
+ )}
+ </div>
+ </div>
+ );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 // MAIN APP
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
 function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }) {
-  const [code, setCode]                   = useState("");
-  const [doc, setDoc]                     = useState("");
-  const [loading, setLoading]             = useState(false);
-  const [fileName, setFileName]           = useState("");
-  const [detectedLanguage, setLang]       = useState("");
-  const [isDragging, setIsDragging]       = useState(false);
-  const [notification, setNotification]   = useState("");
-  const [errorMessage, setErrorMessage]   = useState("");
-  const [uploadedCount, setUploadedCount] = useState(0);
-  const [aiEnabled, setAiEnabled]         = useState(false);
-  const [selectedFileCount, setSelCount]  = useState(0);
-  const [darkMode, setDarkMode]           = useState(false);
-  const [bugLog, setBugLog]               = useState("");
-  const [bugAnalysis, setBugAnalysis]     = useState("");
-  const [bugLoading, setBugLoading]       = useState(false);
-  const [healthReport, setHealthReport]   = useState("");
-  const [requirementsText, setReqText]    = useState("");
-  const [taskPlan, setTaskPlan]           = useState("");
-  const [taskLoading, setTaskLoading]     = useState(false);
-  const [activeModule, setActiveModule]   = useState("docs");
-  const [savedDocs, setSavedDocs]         = useState([]);
-  const [docsLoading, setDocsLoading]     = useState(false);
-  const [selectedDoc, setSelectedDoc]     = useState(null);
-  const [docOpening, setDocOpening]       = useState(false);
-  const [saving, setSaving]               = useState(false);
-  const [repoUrl, setRepoUrl] = useState("");
-  const [githubToken, setGithubToken] = useState("");
-  const [repoLoading, setRepoLoading] = useState(false);
-  const [repoDoc, setRepoDoc] = useState("");
-  const [repoName, setRepoName] = useState("");
-  const [inviteEmail, setInviteEmail]     = useState("");
-  const [inviting, setInviting]           = useState(false);
-  const [usageInfo, setUsageInfo]         = useState(null);
-  const [usageLoading, setUsageLoading]   = useState(false);
-  const [upgradePrompt, setUpgradePrompt] = useState(null);
-  const [billingLoading, setBillingLoading] = useState(false);
-
-  const selectedSummary = useMemo(() => {
-    if (!uploadedCount && !fileName) return "No files selected yet.";
-    if (selectedFileCount === 1) return `1 file selected: ${fileName}`;
-    return `${selectedFileCount} files selected.`;
-  }, [uploadedCount, selectedFileCount, fileName]);
-
-  const showNotification = msg => { setNotification(msg); setTimeout(() => setNotification(""), 2500); };
-  const showError        = msg => { setErrorMessage(msg); setTimeout(() => setErrorMessage(""), 4000); };
-
-  const loadUsage = async () => {
-    setUsageLoading(true);
-    try {
-      const r = await authFetch("/billing/usage", { method: "GET" }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (!r.ok || d.error) return;
-      setUsageInfo(d.usage);
-    } catch {
-      // Keep the workspace usable even if usage panel fails temporarily.
-    } finally {
-      setUsageLoading(false);
-    }
-  };
-
-  const applyUsageFromResponse = (data) => {
-    if (data?.usage) setUsageInfo(data.usage);
-  };
-
-  const handleLimitReached = (data) => {
-    if (data?.usage) setUsageInfo(data.usage);
-    setUpgradePrompt(data || { error: "Free plan limit reached. Upgrade to continue." });
-    toast.error(data?.error || "Free plan limit reached. Upgrade to continue.");
-  };
-
-  const changeDemoPlan = async (plan) => {
-    try {
-      const r = await authFetch("/billing/demo-upgrade", {
-        method: "POST",
-        body: JSON.stringify({ plan }),
-      }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (!r.ok || d.error) { toast.error(d.error || "Could not change plan."); return; }
-      if (d.usage) setUsageInfo(d.usage);
-      toast.success(d.message || "Plan updated.");
-      setUpgradePrompt(null);
-    } catch {
-      toast.error("Could not connect to billing service.");
-    }
-  };
-
-  const startStripeCheckout = async (plan) => {
-    if (!plan || plan === "free") return;
-    setBillingLoading(true);
-    try {
-      const r = await authFetch("/billing/create-checkout-session", {
-        method: "POST",
-        body: JSON.stringify({ plan }),
-      }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (!r.ok || d.error) {
-        toast.error(d.error || "Could not start Stripe checkout.");
-        return;
-      }
-      if (!d.checkout_url) {
-        toast.error("Stripe checkout URL was not returned.");
-        return;
-      }
-      window.location.href = d.checkout_url;
-    } catch {
-      toast.error("Could not connect to Stripe checkout service.");
-    } finally {
-      setBillingLoading(false);
-    }
-  };
-
-  const openCustomerPortal = async () => {
-    setBillingLoading(true);
-    try {
-      const r = await authFetch("/billing/create-portal-session", {
-        method: "POST",
-      }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (!r.ok || d.error) {
-        toast.error(d.error || "Could not open Stripe customer portal.");
-        return;
-      }
-      if (d.portal_url) window.location.href = d.portal_url;
-    } catch {
-      toast.error("Could not connect to billing portal.");
-    } finally {
-      setBillingLoading(false);
-    }
-  };
-
-  const refreshStripeSubscription = async () => {
-    setBillingLoading(true);
-    try {
-      const r = await authFetch("/billing/refresh-subscription", {
-        method: "POST",
-      }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (!r.ok || d.error) {
-        toast.error(d.error || "Could not sync Stripe subscription.");
-        return;
-      }
-      if (d.usage) setUsageInfo(d.usage);
-      toast.success(d.message || "Stripe subscription synced.");
-    } catch {
-      toast.error("Could not connect to Stripe subscription service.");
-    } finally {
-      setBillingLoading(false);
-    }
-  };
-
-  const syncStripeSessionFromUrl = async () => {
-    const params = new URLSearchParams(window.location.search);
-    const sessionId = params.get("session_id");
-    const stripeSuccess = params.get("stripe_success");
-    const stripeCancelled = params.get("stripe_cancelled");
-
-    if (stripeCancelled) {
-      toast.error("Stripe checkout was cancelled.");
-      window.history.replaceState({}, document.title, window.location.pathname);
-      return;
-    }
-
-    if (!stripeSuccess || !sessionId) return;
-
-    setBillingLoading(true);
-    try {
-      const r = await authFetch("/billing/sync-session", {
-        method: "POST",
-        body: JSON.stringify({ session_id: sessionId }),
-      }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (!r.ok || d.error) {
-        toast.error(d.error || "Could not activate subscription.");
-        return;
-      }
-      if (d.usage) setUsageInfo(d.usage);
-      toast.success(d.message || "Subscription activated.");
-      setActiveModule("billing");
-    } catch {
-      toast.error("Could not verify Stripe checkout.");
-    } finally {
-      window.history.replaceState({}, document.title, window.location.pathname);
-      setBillingLoading(false);
-    }
-  };
-
-  const usageRows = useMemo(() => {
-    const f = usageInfo?.features || {};
-    return [
-      ["Docs + GitHub", f.documentation_generations],
-      ["Bug Analyzer", f.bug_analyzer],
-      ["Project Health", f.project_health],
-      ["Task Generator", f.task_generator],
-      ["Workspaces", usageInfo?.workspace],
-    ].filter(([, value]) => Boolean(value));
-  }, [usageInfo]);
-
-  const usageText = (item) => {
-    if (!item) return "â€”";
-    if (item.unlimited || item.limit === null) return `${item.used} / Unlimited`;
-    return `${item.used} / ${item.limit}`;
-  };
-
-  // Load saved docs when switching to history tab
-  useEffect(() => {
-    if (activeModule === "history") {
-      setSelectedDoc(null);
-      loadDocs();
-    }
-  }, [activeModule]);
-
-  useEffect(() => {
-    loadUsage();
-    syncStripeSessionFromUrl();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadDocs = async () => {
-    setDocsLoading(true);
-    try {
-      const r = await authFetch(`/workspaces/${workspace.id}/documents`, { method: "GET" }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (!r.ok || d.error) { toast.error(d.error || "Could not load documents."); return; }
-      setSavedDocs(d.documents || []);
-    } catch { toast.error("Could not load documents."); }
-    finally { setDocsLoading(false); }
-  };
-
-  const openSavedDoc = async (docId) => {
-    setDocOpening(true);
-    try {
-      const r = await authFetch(`/documents/${docId}`, { method: "GET" }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (!r.ok || d.error) { toast.error(d.error || "Could not open document."); return; }
-      setSelectedDoc(d.document);
-    } catch {
-      toast.error("Could not open document.");
-    } finally {
-      setDocOpening(false);
-    }
-  };
-
-  const saveWorkspaceDocument = async ({ title, language, content, file_count, successMessage }) => {
-    if (!content) { toast.error("Nothing to save yet."); return; }
-    setSaving(true);
-    try {
-      const r = await authFetch(`/workspaces/${workspace.id}/documents`, {
-        method: "POST",
-        body: JSON.stringify({
-          title: title || "Untitled DevFlow Document",
-          language: language || "Unknown",
-          content,
-          file_count: file_count || 1,
-        }),
-      }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (!r.ok || d.error) { toast.error(d.error || "Failed to save."); return; }
-      toast.success(successMessage || "Saved to workspace!");
-      if (activeModule === "history") loadDocs();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveDoc = async () => {
-    if (!doc) { toast.error("Generate documentation first."); return; }
-    const title = fileName ? `Docs: ${fileName.split(",")[0]}` : "Untitled Documentation";
-    await saveWorkspaceDocument({
-      title,
-      language: detectedLanguage || "Documentation",
-      content: doc,
-      file_count: uploadedCount || 1,
-      successMessage: "Documentation saved to workspace!",
-    });
-  };
-
-  const saveHealthReport = async () => {
-    if (!healthReport) { toast.error("Generate project health report first."); return; }
-    const title = fileName ? `Health Report: ${fileName.split(",")[0]}` : "Project Health Report";
-    await saveWorkspaceDocument({
-      title,
-      language: "Project Health",
-      content: healthReport,
-      file_count: uploadedCount || 1,
-      successMessage: "Project health report saved to workspace!",
-    });
-  };
-
-  const deleteDoc = async (docId) => {
-    const r = await authFetch(`/documents/${docId}`, { method: "DELETE" }, onAuthExpired);
-    const d = await safeJson(r);
-    if (r.status === 401) return;
-    if (!r.ok || d.error) { toast.error(d.error || "Could not delete document."); return; }
-    setSavedDocs(prev => prev.filter(d => d.id !== docId));
-    if (selectedDoc?.id === docId) setSelectedDoc(null);
-    toast.success("Deleted.");
-  };
-
-  const inviteMember = async () => {
-    if (!inviteEmail.trim()) { toast.error("Enter an email address."); return; }
-    setInviting(true);
-    try {
-      const r = await authFetch(`/workspaces/${workspace.id}/members`, {
-        method: "POST",
-        body: JSON.stringify({ email: inviteEmail }),
-      }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (!r.ok || d.error) { toast.error(d.error || "Could not invite member."); return; }
-      toast.success(`${inviteEmail} added to workspace!`);
-      setInviteEmail("");
-    } finally { setInviting(false); }
-  };
-
-  const shouldIgnoreFile = filePath => {
-    const p = filePath.toLowerCase();
-    const ignoredParts = ["node_modules","venv",".venv","__pycache__",".git","dist","build",".next","coverage","images","assets","media",".cache"];
-    const ignoredFiles = ["package-lock.json","yarn.lock","pnpm-lock.yaml",".env",".env.local",".gitignore",".ds_store"];
-    const ignoredExts  = [".png",".jpg",".jpeg",".gif",".svg",".ico",".pdf",".zip",".rar",".exe",".dll",".mp4",".mp3",".woff",".woff2",".ttf"];
-    if (ignoredParts.some(x => p.includes(x))) return true;
-    if (ignoredFiles.some(x => p.endsWith(x))) return true;
-    if (ignoredExts.some(x => p.endsWith(x))) return true;
-    return false;
-  };
-
-  const readFileAsText = file => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload  = e => resolve({ name: file.webkitRelativePath || file.name, content: e.target.result || "" });
-    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-    reader.readAsText(file);
-  });
-
-  const handleFileUpload = async event => {
-    setErrorMessage("");
-    const selectedFiles = Array.from(event.target.files || []);
-    const supportedFiles = selectedFiles.filter(f => {
-      const fp = f.webkitRelativePath || f.name;
-      return !shouldIgnoreFile(fp) && f.size <= MAX_FILE_SIZE_MB * 1024 * 1024;
-    });
-    setSelCount(supportedFiles.length);
-    if (supportedFiles.length === 0) { showError("No supported code files found."); return; }
-    const filesToRead = supportedFiles.slice(0, MAX_TOTAL_FILES);
-    try {
-      const results = await Promise.all(filesToRead.map(readFileAsText));
-      setCode(results.map(f => `--- FILE: ${f.name} ---\n${f.content}`).join("\n\n"));
-      setDoc(""); setLang(""); setUploadedCount(results.length);
-      setFileName(results.map(f => f.name).join(", "));
-      showNotification(supportedFiles.length > MAX_TOTAL_FILES ? `Loaded first ${MAX_TOTAL_FILES} files only.` : "Files loaded successfully.");
-    } catch (e) { showError(e.message || "Failed to read files."); }
-    finally { event.target.value = ""; }
-  };
-
-  const handleDrop = async e => {
-    e.preventDefault(); e.stopPropagation(); setIsDragging(false);
-    try { await handleFileUpload({ target: { files: e.dataTransfer.files } }); }
-    catch { toast.error("Failed to read dropped files."); }
-  };
-
-  const cleanDoc = text => String(text||"").replace(/```python/g,"").replace(/```javascript/g,"").replace(/```/g,"").replace(/### /g,"").replace(/## /g,"").replace(/`/g,"");
-
-  const handleGenerateDoc = async () => {
-    if (!code.trim()) { showError("Please paste code or upload a project first."); return; }
-    setLoading(true); setDoc(""); setLang(""); setErrorMessage("");
-    try {
-      const r = await authFetch(`/generate-doc`, { method:"POST", body:JSON.stringify({code,fileName}) }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
-      if (!r.ok || d.error) throw new Error(d.error || "Something went wrong.");
-      setDoc(d.doc||"No documentation returned."); setLang(d.language||""); setAiEnabled(Boolean(d.aiEnabled));
-      applyUsageFromResponse(d);
-      showNotification("Documentation generated!");
-    } catch(e) { showError(e.message||"Failed to connect to backend."); }
-    finally { setLoading(false); }
-  };
-
-  const handleProjectHealth = async () => {
-    if (!code.trim()) { showError("Please upload a project first."); return; }
-    setLoading(true);
-    try {
-      const r = await authFetch(`/project-health`, { method:"POST", body:JSON.stringify({code}) }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
-      if (!r.ok || d.error) throw new Error(d.error||"Failed to generate health report.");
-      const rp = d.report;
-      setHealthReport(`Project Health Report\n\nScore: ${rp.score}\nProduction Readiness: ${rp.production_readiness||"N/A"}\nTotal Files: ${rp.total_files_detected}\n\nTech Stack:\n${(rp.tech_stack||[]).map(t=>"- "+t).join("\n")||"- Not detected"}\n\nDetected Routes:\n${rp.routes?.length ? rp.routes.map(r=>"- "+r).join("\n") : "- No routes detected"}\n\nIssues:\n${rp.issues?.length ? rp.issues.map(i=>"- "+i).join("\n") : "- No major issues"}\n\nSecurity Risks:\n${rp.security_risks?.length ? rp.security_risks.map(s=>"- "+s).join("\n") : "- None detected"}\n\nSuggestions:\n${rp.suggestions?.map(s=>"- "+s).join("\n")}`);
-      setActiveModule("health");
-      applyUsageFromResponse(d);
-      showNotification("Health report generated.");
-    } catch(e) { showError(e.message); }
-    finally { setLoading(false); }
-  };
-
-  const handleAnalyzeBug = async () => {
-    if (!bugLog.trim()) { showError("Please paste an error log first."); return; }
-    setBugLoading(true); setBugAnalysis("");
-    try {
-      const r = await authFetch(`/analyze-bug`, { method:"POST", body:JSON.stringify({error_log:bugLog}) }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
-      if (!r.ok) throw new Error(d.error||"Failed to analyze bug.");
-      setBugAnalysis(d.analysis||"No analysis returned."); applyUsageFromResponse(d); showNotification("Bug analyzed!");
-    } catch(e) { showError(e.message); }
-    finally { setBugLoading(false); }
-  };
-
-  const handleGenerateTasks = async () => {
-    if (!requirementsText.trim()) { showError("Please paste requirements first."); return; }
-    setTaskLoading(true); setTaskPlan("");
-    try {
-      const r = await authFetch(`/generate-tasks`, { method:"POST", body:JSON.stringify({requirements:requirementsText}) }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
-      if (!r.ok || d.error) throw new Error(d.error||"Failed to generate tasks.");
-      applyUsageFromResponse(d);
-      setTaskPlan(d.tasks.map(t=>`${t.title}\nPriority: ${t.priority}\nRole: ${t.role}\nEstimated Time: ${t.estimated_time}\n\nSubtasks:\n${t.subtasks.map(s=>"- "+s).join("\n")}\n\nAcceptance Criteria:\n${t.acceptance_criteria.map(a=>"- "+a).join("\n")}`).join("\n--------------------------\n"));
-      showNotification("Tasks generated!");
-    } catch(e) { showError(e.message); }
-    finally { setTaskLoading(false); }
-  };
-
-  const downloadTextFile = (content, name, type) => {
-    const blob = new Blob([content],{type}); const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
-  };
-
-  const handleExportPDF = () => {
-    if (!doc) { toast.error("Generate documentation first."); return; }
-    const pdf = new jsPDF("p","mm","a4");
-    const pw = pdf.internal.pageSize.getWidth(); const ph = pdf.internal.pageSize.getHeight();
-    const margin = 14; let y = 18; let page = 1;
-    const footer = () => { pdf.setFont("helvetica","normal"); pdf.setFontSize(8); pdf.text(`Page ${page}`, pw-margin-15, ph-8); };
-    pdf.setFont("helvetica","bold"); pdf.setFontSize(18); pdf.text("DevFlow",margin,y); y+=8;
-    pdf.setFont("helvetica","normal"); pdf.setFontSize(10); pdf.text("Generated Documentation",margin,y); y+=10;
-    pdf.setFont("courier","normal"); pdf.setFontSize(9);
-    pdf.splitTextToSize(cleanDoc(doc), pw-margin*2).forEach(line => {
-      if (y > ph-15) { footer(); pdf.addPage(); page++; y=18; pdf.setFont("courier","normal"); pdf.setFontSize(9); }
-      pdf.text(line,margin,y); y+=5;
-    });
-    footer(); pdf.save("devflow-documentation.pdf"); toast.success("PDF exported!");
-  };
-
-  const exportContentAsPDF = (title, content, fileNameToSave) => {
-    if (!content) { toast.error("Nothing to export yet."); return; }
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pw = pdf.internal.pageSize.getWidth();
-    const ph = pdf.internal.pageSize.getHeight();
-    const margin = 14;
-    let y = 18;
-    let page = 1;
-    const footer = () => {
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(8);
-      pdf.text(`Page ${page}`, pw - margin - 15, ph - 8);
-    };
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(18);
-    pdf.text("DevFlow", margin, y);
-    y += 8;
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-    pdf.text(title, margin, y);
-    y += 10;
-    pdf.setFont("courier", "normal");
-    pdf.setFontSize(9);
-    pdf.splitTextToSize(cleanDoc(content), pw - margin * 2).forEach(line => {
-      if (y > ph - 15) {
-        footer();
-        pdf.addPage();
-        page += 1;
-        y = 18;
-        pdf.setFont("courier", "normal");
-        pdf.setFontSize(9);
-      }
-      pdf.text(line, margin, y);
-      y += 5;
-    });
-    footer();
-    pdf.save(fileNameToSave);
-    toast.success("PDF exported!");
-  };
-
-  const saveRepoDoc = async () => {
-    if (!repoDoc) { toast.error("Generate GitHub documentation first."); return; }
-    setSaving(true);
-    try {
-      const title = repoName ? `GitHub Docs: ${repoName}` : "GitHub Repository Documentation";
-      const r = await authFetch(`/workspaces/${workspace.id}/documents`, {
-        method: "POST",
-        body: JSON.stringify({
-          title,
-          language: "Repository",
-          content: repoDoc,
-          file_count: 1,
-        }),
-      }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (!r.ok || d.error) { toast.error(d.error || "Failed to save GitHub docs."); return; }
-      toast.success("GitHub documentation saved to workspace!");
-      if (activeModule === "history") loadDocs();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleGithubDocument = async () => {
-    if (!repoUrl.trim()) { showError("Please enter a GitHub repository URL."); return; }
-    setRepoLoading(true); setRepoDoc("");
-    try {
-      const r = await authFetch(`/github/document`, {
-        method: "POST",
-        body: JSON.stringify({ repo_url: repoUrl, github_token: githubToken }),
-      }, onAuthExpired);
-      const d = await safeJson(r);
-      if (r.status === 401) return;
-      if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
-      if (!r.ok || !d.success) { showError(d.error || "Failed to fetch repo."); return; }
-      setRepoDoc(d.doc); setRepoName(d.repo_name); applyUsageFromResponse(d);
-      showNotification(`Fast GitHub report generated for ${d.file_count} files from ${d.repo_name}!`);
-    } catch(e) { showError("Could not connect to backend."); }
-    finally { setRepoLoading(false); }
-  };
-
-  const handleClearAll = () => {
-    setCode(""); setDoc(""); setFileName(""); setLang(""); setUploadedCount(0);
-    setAiEnabled(false); setErrorMessage(""); setHealthReport("");
-    setBugAnalysis(""); setBugLog(""); setReqText(""); setTaskPlan(""); setSelCount(0);
-    showNotification("Cleared.");
-  };
-
-  const billing = usageInfo?.billing || {};
-  const currentPlan = String(usageInfo?.plan || "free").toLowerCase();
-  const subscriptionStatus = billing.subscription_status || (currentPlan === "free" ? "free" : "active");
-  const periodEndLabel = billing.current_period_end
-    ? new Date(billing.current_period_end).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
-    : "Not available";
-  const billingPlanCards = [
-    {
-      plan: "free",
-      title: "Free",
-      price: "$0",
-      suffix: "forever",
-      badge: "Starter",
-      description: "For testing DevFlow and small personal experiments.",
-      items: ["5 docs or GitHub reports per month", "1 workspace", "3 bug analyses", "2 health reports", "3 task generations"]
-    },
-    {
-      plan: "pro",
-      title: "Pro",
-      price: "$19",
-      suffix: "per month",
-      badge: "Most popular",
-      description: "For active developers building and documenting real projects.",
-      items: ["Unlimited documentation", "GitHub repo documentation", "3 workspaces", "Unlimited AI tools", "Priority AI responses"]
-    },
-    {
-      plan: "team",
-      title: "Team",
-      price: "$49",
-      suffix: "per user/month",
-      badge: "For companies",
-      description: "For software teams that need shared knowledge and billing control.",
-      items: ["Unlimited workspaces", "Unlimited team members", "Admin dashboard roadmap", "Audit logs roadmap", "Priority support roadmap"]
-    }
-  ];
-
-  return (
-    <div className={`app-container ${darkMode?"dark-mode":""}`}>
-      {notification && <div className="toast-notification">{notification}</div>}
-      {errorMessage && <div className="toast-notification error-toast">{errorMessage}</div>}
-
-      <header className="hero-section">
-        <div className="hero-top">
-          <h1>DevFlow</h1>
-          <div className="hero-user-bar">
-            <span className="workspace-badge">ðŸ“ {workspace.name}</span>
-            <button className="nav-small-btn" onClick={onSwitchWorkspace}>Switch</button>
-            <button className="nav-small-btn danger" onClick={onLogout}>Logout</button>
-            <button className="theme-toggle" onClick={() => setDarkMode(!darkMode)}>
-              {darkMode ? "â˜€ï¸" : "ðŸŒ™"}
-            </button>
-          </div>
-        </div>
-
-        <div className="workspace-nav">
-          {["docs","bugs","health","tasks","github","history","team","billing"].map(m => (
-            <button key={m} className={activeModule===m?"nav-active":""} onClick={() => setActiveModule(m)}>
-              {m === "docs" ? "Documentation" : m === "bugs" ? "Bug Analyzer" : m === "health" ? "Project Health" : m === "tasks" ? "Task Generator" : m === "history" ? "ðŸ“„ Saved Docs" : m === "github" ? "ðŸ™ GitHub" : m === "billing" ? "ðŸ’³ Billing" : "ðŸ‘¥ Team"}
-            </button>
-          ))}
-        </div>
-        <p>AI-powered developer workspace â€” {workspace.name}</p>
-      </header>
-
-      {upgradePrompt && (
-        <div className="loading-overlay">
-          <div className="loading-card" style={{maxWidth:"560px", textAlign:"left"}}>
-            <h2 style={{marginTop:0}}>Upgrade Required</h2>
-            <p>{upgradePrompt.error || "You reached your free plan limit."}</p>
-            <div style={{background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", padding:"14px", margin:"14px 0"}}>
-              <strong>Free plan limits</strong>
-              <p style={{margin:"8px 0 0", color:"#64748b"}}>5 docs/GitHub reports, 3 bug analyses, 2 health reports, 3 task generations, and 1 workspace per month.</p>
-            </div>
-            <div style={{display:"flex", gap:"10px", flexWrap:"wrap"}}>
-              <button onClick={() => { setUpgradePrompt(null); setActiveModule("billing"); }}>View Pricing</button>
-              <button className="secondary-btn" onClick={() => startStripeCheckout("pro")} disabled={billingLoading}>{billingLoading ? "Opening Stripe..." : "Upgrade to Pro"}</button>
-              <button className="danger-btn" onClick={() => setUpgradePrompt(null)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {usageInfo && (
-        <section style={{maxWidth:"1180px", margin:"18px auto 0", padding:"18px", background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:"20px", boxShadow:"0 10px 28px rgba(15, 23, 42, 0.06)"}}>
-          <div style={{display:"flex", justifyContent:"space-between", gap:"16px", alignItems:"center", flexWrap:"wrap"}}>
-            <div>
-              <strong style={{fontSize:"18px"}}>Plan: {String(usageInfo.plan || "free").toUpperCase()}</strong>
-              <p style={{margin:"4px 0 0", color:"#64748b"}}>Usage period: {usageInfo.period} {usageLoading ? "Â· Refreshing..." : ""}</p>
-            </div>
-            <div style={{display:"flex", gap:"10px", flexWrap:"wrap"}}>
-              <button className="secondary-btn" onClick={loadUsage}>Refresh Usage</button>
-              <button onClick={() => setActiveModule("billing")}>Upgrade</button>
-            </div>
-          </div>
-          <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))", gap:"12px", marginTop:"16px"}}>
-            {usageRows.map(([label, item]) => (
-              <div key={label} style={{background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", padding:"12px"}}>
-                <span style={{display:"block", color:"#64748b", fontSize:"13px", marginBottom:"6px"}}>{label}</span>
-                <strong>{usageText(item)}</strong>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <main className="main-grid">
-
-        {/* â”€â”€ DOCUMENTATION â”€â”€ */}
-        {activeModule === "docs" && (<>
-          <section className="card">
-            <h2>Paste or Upload Project Code</h2>
-            <div className="upload-module">
-              <label className="upload-label">Upload single or multiple files</label>
-              <input type="file" className="file-input" onChange={handleFileUpload} accept=".py,.js,.jsx,.ts,.tsx,.html,.css,.sql,.php,.java,.cpp,.c,.cs,.kt,.swift,.dart,.txt,.md,.json" multiple />
-            </div>
-            <div className="upload-module">
-              <label className="upload-label">Upload full project folder</label>
-              <input type="file" className="file-input" onChange={handleFileUpload} webkitdirectory="true" directory="true" multiple />
-            </div>
-            <p className="file-name">{selectedSummary}</p>
-            <div className={`drop-zone ${isDragging?"drag-active":""}`}
-              onDragEnter={e=>{e.preventDefault();e.stopPropagation();setIsDragging(true)}}
-              onDragOver={e=>{e.preventDefault();e.stopPropagation();setIsDragging(true)}}
-              onDragLeave={e=>{e.preventDefault();e.stopPropagation();setIsDragging(false)}}
-              onDrop={handleDrop}>
-              <strong>Drag & drop source files here</strong>
-              <span>or use the upload buttons above</span>
-            </div>
-            <textarea className="code-textarea" value={code} onChange={e=>{setCode(e.target.value);setDoc("");setLang("");setHealthReport("");}}
-              placeholder={`Upload files or paste code, then click Generate.\n\nSupported:\n- Single code snippets\n- Full files\n- Multiple files\n- Project folders`} />
-            {loading && <div className="loading-overlay"><div className="loading-card"><InfinitySpin width="220" color="#2563eb"/><h2>Analyzing Project...</h2><p>Generating documentation with AI...</p></div></div>}
-            <div className="button-row">
-              <button onClick={handleGenerateDoc} disabled={loading||!code.trim()}>{loading?"Generating...":"Generate"}</button>
-              <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>Health Check</button>
-              <button className="secondary-btn" onClick={saveDoc} disabled={!doc||saving}>{saving?"Saving...":"ðŸ’¾ Save"}</button>
-              <button className="secondary-btn" onClick={()=>{if(!doc){toast.error("Generate first.");return;}navigator.clipboard.writeText(cleanDoc(doc));toast.success("Copied!");}}>Copy</button>
-              <button className="secondary-btn" onClick={()=>{if(!doc){toast.error("Generate first.");return;}downloadTextFile(doc,"documentation.md","text/markdown");toast.success("Markdown exported!");}}>Markdown</button>
-              <button className="secondary-btn" onClick={handleExportPDF} disabled={!doc}>PDF</button>
-              <button className="danger-btn" onClick={handleClearAll} disabled={loading}>Clear</button>
-            </div>
-          </section>
-          <section className="card docs-card">
-            <h2>Generated Documentation</h2>
-            <div className="stats-grid">
-              <div className="stat-card"><span>Files</span><strong>{uploadedCount}</strong></div>
-              <div className="stat-card"><span>AI Engine</span><strong>{aiEnabled?"Groq AI":"Rule-based"}</strong></div>
-              <div className="stat-card"><span>Language</span><strong>{detectedLanguage||"Waiting"}</strong></div>
-            </div>
-            <pre className={`output-box ${!doc?"empty-output":""}`}>
-              {doc ? cleanDoc(doc) : `Your generated documentation will appear here.\n\nGenerated docs are saved to your workspace automatically.`}
-            </pre>
-          </section>
-        </>)}
-
-        {/* â”€â”€ BUG ANALYZER â”€â”€ */}
-        {activeModule === "bugs" && (<>
-          <section className="card">
-            <h2>AI Bug Analyzer</h2>
-            <p className="helper-text">Paste an error log, traceback, or terminal error and get a clear explanation with suggested fixes.</p>
-            <textarea className="code-textarea" value={bugLog} onChange={e=>setBugLog(e.target.value)} placeholder="Paste your error log here..." />
-            {bugLoading && <div className="loading-overlay"><div className="loading-card"><InfinitySpin width="220" color="#2563eb"/><h2>Analyzing Bug...</h2><p>Reading the error log...</p></div></div>}
-            <div className="button-row">
-              <button onClick={handleAnalyzeBug} disabled={bugLoading||!bugLog.trim()}>{bugLoading?"Analyzing...":"Analyze Bug"}</button>
-              <button className="danger-btn" onClick={handleClearAll}>Clear</button>
-            </div>
-          </section>
-          <section className="card docs-card">
-            <h2>Bug Analysis Result</h2>
-            <pre className={`output-box ${!bugAnalysis?"empty-output":""}`}>{bugAnalysis||"Bug analysis will appear here."}</pre>
-          </section>
-        </>)}
-
-        {/* â”€â”€ PROJECT HEALTH â”€â”€ */}
-        {activeModule === "health" && (
-          <div className="module-single-view">
-            <section className="card docs-card">
-              <h2>Project Health Report</h2>
-              <p className="helper-text">Upload project code in the Documentation tab first, then generate a health report here.</p>
-              <div className="button-row">
-                <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>{loading?"Analyzing...":"Generate Health Report"}</button>
-                <button className="secondary-btn" onClick={saveHealthReport} disabled={!healthReport||saving}>{saving?"Saving...":"ðŸ’¾ Save Health"}</button>
-                <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}navigator.clipboard.writeText(healthReport);toast.success("Copied!");}} disabled={!healthReport}>Copy</button>
-                <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}downloadTextFile(healthReport,"project-health-report.md","text/markdown");toast.success("Markdown exported!");}} disabled={!healthReport}>Markdown</button>
-                <button className="secondary-btn" onClick={()=>exportContentAsPDF("Project Health Report", healthReport, "project-health-report.pdf")} disabled={!healthReport}>PDF</button>
-                <button className="danger-btn" onClick={handleClearAll}>Clear</button>
-              </div>
-              <pre className={`output-box ${!healthReport?"empty-output":""}`}>{healthReport||"Project health report will appear here."}</pre>
-            </section>
-          </div>
-        )}
-
-        {/* â”€â”€ TASK GENERATOR â”€â”€ */}
-        {activeModule === "tasks" && (<>
-          <section className="card">
-            <h2>Team Task Generator</h2>
-            <p className="helper-text">Paste client requirements or meeting notes and generate developer-ready tasks.</p>
-            <textarea className="code-textarea" value={requirementsText} onChange={e=>setReqText(e.target.value)} placeholder="Paste client requirements, meeting notes, or feature ideas here..." />
-            {taskLoading && <div className="loading-overlay"><div className="loading-card"><InfinitySpin width="220" color="#2563eb"/><h2>Generating Tasks...</h2><p>Breaking down requirements...</p></div></div>}
-            <div className="button-row">
-              <button onClick={handleGenerateTasks} disabled={taskLoading||!requirementsText.trim()}>{taskLoading?"Generating...":"Generate Tasks"}</button>
-              <button className="danger-btn" onClick={handleClearAll}>Clear</button>
-            </div>
-          </section>
-          <section className="card docs-card">
-            <h2>Generated Tasks</h2>
-            <pre className={`output-box ${!taskPlan?"empty-output":""}`}>{taskPlan||"Generated team tasks will appear here."}</pre>
-          </section>
-        </>)}
-
-        {/* â”€â”€ SAVED DOCS HISTORY â”€â”€ */}
-        {activeModule === "history" && (
-          <div className="module-single-view">
-            <section className="card docs-card">
-              {!selectedDoc ? (
-                <>
-                  <h2>ðŸ“„ Saved Documentation â€” {workspace.name}</h2>
-                  <p className="helper-text">Open saved documentation, GitHub repo reports, export them, or delete old records.</p>
-
-                  {docsLoading ? (
-                    <p style={{color:"#64748b"}}>Loading saved documents...</p>
-                  ) : savedDocs.length === 0 ? (
-                    <p style={{color:"#64748b"}}>No saved documents yet. Generate documentation or GitHub repo docs, then save them to your workspace.</p>
-                  ) : (
-                    <div className="docs-history-list">
-                      {savedDocs.map(d => (
-                        <div key={d.id} className="history-item">
-                          <div className="history-info">
-                            <strong>{d.title}</strong>
-                            <span>{d.language} Â· {d.file_count} file{d.file_count!==1?"s":""} Â· {new Date(d.created_at).toLocaleDateString()}</span>
-                          </div>
-                          <div style={{display:"flex",gap:"10px",flexWrap:"wrap"}}>
-                            <button className="secondary-btn small-btn" onClick={() => openSavedDoc(d.id)} disabled={docOpening}>
-                              {docOpening ? "Opening..." : "Open"}
-                            </button>
-                            <button className="danger-btn small-btn" onClick={() => deleteDoc(d.id)}>Delete</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div style={{display:"flex",justifyContent:"space-between",gap:"14px",alignItems:"flex-start",flexWrap:"wrap"}}>
-                    <div>
-                      <h2 style={{marginBottom:"6px"}}>{selectedDoc.title}</h2>
-                      <p className="helper-text" style={{marginTop:0}}>
-                        {selectedDoc.language || "Unknown"} Â· {selectedDoc.file_count || 1} file{selectedDoc.file_count!==1?"s":""} Â· Saved {new Date(selectedDoc.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <button className="secondary-btn" onClick={() => setSelectedDoc(null)}>â† Back to Saved Docs</button>
-                  </div>
-
-                  <div className="button-row" style={{marginTop:"18px"}}>
-                    <button className="secondary-btn" onClick={() => {navigator.clipboard.writeText(cleanDoc(selectedDoc.content)); toast.success("Copied!");}}>Copy</button>
-                    <button className="secondary-btn" onClick={() => {downloadTextFile(selectedDoc.content, `${selectedDoc.title || "devflow-documentation"}.md`.replace(/[^a-z0-9_.-]/gi, "-"), "text/markdown"); toast.success("Markdown exported!");}}>Markdown</button>
-                    <button className="secondary-btn" onClick={() => exportContentAsPDF(selectedDoc.title || "Saved Documentation", selectedDoc.content, `${selectedDoc.title || "devflow-documentation"}.pdf`.replace(/[^a-z0-9_.-]/gi, "-"))}>PDF</button>
-                    <button className="danger-btn" onClick={() => deleteDoc(selectedDoc.id)}>Delete</button>
-                  </div>
-
-                  <pre className={`output-box ${!selectedDoc.content?"empty-output":""}`}>
-                    {selectedDoc.content || "No document content found."}
-                  </pre>
-                </>
-              )}
-            </section>
-          </div>
-        )}
-
-        {/* â”€â”€ GITHUB â”€â”€ */}
-        {activeModule === "github" && (<>
-          <section className="card">
-            <h2>ðŸ™ GitHub Integration</h2>
-            <p className="helper-text">Paste a GitHub repository URL and DevFlow will create a fast architecture-level repository report for onboarding, review, and documentation.</p>
-            <label className="upload-label">GitHub Repository URL</label>
-            <input className="auth-input" style={{marginBottom:"12px",fontFamily:"monospace"}} placeholder="https://github.com/username/reponame" value={repoUrl} onChange={e=>setRepoUrl(e.target.value)} />
-            <label className="upload-label">GitHub Token (optional â€” for private repos)</label>
-            <input className="auth-input" style={{marginBottom:"12px",fontFamily:"monospace"}} placeholder="ghp_xxxxxxxxxxxx (leave empty for public repos)" type="password" value={githubToken} onChange={e=>setGithubToken(e.target.value)} />
-            <p className="helper-text">For private repos: go to GitHub â†’ Settings â†’ Developer Settings â†’ Personal Access Tokens â†’ Generate new token (classic) â†’ check <strong>repo</strong> scope.</p>
-            {repoLoading && <div className="loading-overlay"><div className="loading-card"><InfinitySpin width="220" color="#2563eb"/><h2>Fetching Repository...</h2><p>Scanning key files and generating a fast repository summary...</p></div></div>}
-            <div className="button-row">
-              <button onClick={handleGithubDocument} disabled={repoLoading||!repoUrl.trim()}>{repoLoading?"Fetching...":"Generate Fast Repo Docs"}</button>
-              <button className="secondary-btn" onClick={()=>{if(!repoDoc){toast.error("Generate GitHub docs first.");return;}navigator.clipboard.writeText(cleanDoc(repoDoc));toast.success("Copied!");}} disabled={!repoDoc}>Copy</button>
-              <button className="secondary-btn" onClick={()=>{if(!repoDoc){toast.error("Generate GitHub docs first.");return;}downloadTextFile(repoDoc,"github-repository-documentation.md","text/markdown");toast.success("Markdown exported!");}} disabled={!repoDoc}>Markdown</button>
-              <button className="secondary-btn" onClick={()=>exportContentAsPDF("GitHub Repository Documentation", repoDoc, "github-repository-documentation.pdf")} disabled={!repoDoc}>PDF</button>
-              <button className="secondary-btn" onClick={saveRepoDoc} disabled={!repoDoc||saving}>{saving?"Saving...":"ðŸ’¾ Save"}</button>
-              <button className="danger-btn" onClick={()=>{setRepoUrl("");setRepoDoc("");setRepoName("");}}>Clear</button>
-            </div>
-          </section>
-          <section className="card docs-card">
-            <h2>Repository Documentation{repoName && <span style={{fontSize:"14px",color:"#64748b",marginLeft:"10px"}}>â€” {repoName}</span>}</h2>
-            <pre className={`output-box ${!repoDoc?"empty-output":""}`}>{repoDoc||"Paste a GitHub URL and click Generate Docs.\n\nSupports:\n- Public repositories\n- Private repos (with token)\n- Any language"}</pre>
-          </section>
-        </>)}
-
-        {/* â”€â”€ BILLING / USAGE â”€â”€ */}
-        {activeModule === "billing" && (
-          <div className="module-single-view">
-            <section className="card billing-page">
-              <div className="billing-hero">
-                <div>
-                  <span className="eyebrow">Phase 4 Billing</span>
-                  <h2>Plan & Subscription</h2>
-                  <p>Upgrade DevFlow with Stripe Checkout, manage billing in Stripe Customer Portal, and keep workspace limits aligned with the active plan.</p>
-                </div>
-                <div className={`plan-pill plan-${currentPlan}`}>
-                  <span>Current plan</span>
-                  <strong>{currentPlan.toUpperCase()}</strong>
-                </div>
-              </div>
-
-              <div className="billing-summary-grid">
-                <div className="billing-summary-card">
-                  <span>Plan</span>
-                  <strong>{currentPlan.toUpperCase()}</strong>
-                </div>
-                <div className="billing-summary-card">
-                  <span>Billing period</span>
-                  <strong>{usageInfo?.period || "â€”"}</strong>
-                </div>
-                <div className="billing-summary-card">
-                  <span>Subscription status</span>
-                  <strong>{String(subscriptionStatus).replaceAll("_", " ")}</strong>
-                </div>
-                <div className="billing-summary-card">
-                  <span>Renews / access through</span>
-                  <strong>{periodEndLabel}</strong>
-                </div>
-              </div>
-
-              <div className={`billing-status-card ${billing.stripe_configured ? "ready" : "warning"}`}>
-                <div className="status-icon">{billing.stripe_configured ? "âœ“" : "!"}</div>
-                <div>
-                  <strong>{billing.stripe_configured ? "Stripe is configured" : "Stripe is not configured yet"}</strong>
-                  <p>
-                    {billing.stripe_configured
-                      ? "Users can upgrade through Stripe Checkout and manage subscription changes from the Stripe Customer Portal."
-                      : "Add STRIPE_SECRET_KEY, STRIPE_PRO_PRICE_ID, and STRIPE_TEAM_PRICE_ID in your backend .env file to enable real payments."}
-                  </p>
-                </div>
-              </div>
-
-              <div className="pricing-grid premium-pricing-grid">
-                {billingPlanCards.map(card => {
-                  const isCurrent = card.plan === currentPlan;
-                  const isPaidCard = card.plan !== "free";
-                  const isFeatured = card.plan === "pro";
-
-                  return (
-                    <div
-                      key={card.plan}
-                      className={`pricing-card ${isFeatured ? "featured" : ""} ${isCurrent ? "current" : ""}`}
-                    >
-                      <div className="pricing-card-top">
-                        <div>
-                          <span className="pricing-badge">{card.badge}</span>
-                          <h3>{card.title}</h3>
-                        </div>
-                        {isCurrent && <span className="current-badge">Active</span>}
-                      </div>
-
-                      <div className="price-line">
-                        <strong>{card.price}</strong>
-                        <span>{card.suffix}</span>
-                      </div>
-
-                      <p className="pricing-description">{card.description}</p>
-
-                      <ul className="pricing-list">
-                        {card.items.map(item => <li key={item}>{item}</li>)}
-                      </ul>
-
-                      {isCurrent ? (
-                        <button className="pricing-btn muted" disabled>Current Plan</button>
-                      ) : isPaidCard ? (
-                        <button className="pricing-btn" onClick={() => startStripeCheckout(card.plan)} disabled={billingLoading}>
-                          {billingLoading ? "Opening Stripe..." : `Upgrade to ${card.title}`}
-                        </button>
-                      ) : (
-                        <button className="pricing-btn muted" disabled>Automatic after cancellation</button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="billing-actions">
-                <button className="secondary-btn" onClick={loadUsage} disabled={usageLoading}>
-                  {usageLoading ? "Refreshing..." : "Refresh Billing"}
-                </button>
-                <button className="secondary-btn" onClick={refreshStripeSubscription} disabled={billingLoading || !billing.stripe_subscription_id}>
-                  {billingLoading ? "Syncing..." : "Sync Stripe Status"}
-                </button>
-                <button onClick={openCustomerPortal} disabled={billingLoading || !billing.stripe_customer_id}>
-                  {billingLoading ? "Opening..." : "Manage Stripe Subscription"}
-                </button>
-              </div>
-
-              <div className="billing-note">
-                <strong>Production note</strong>
-                <p>Stripe Checkout handles upgrades, Stripe Customer Portal handles cancellation and payment changes, and Stripe webhooks plus manual sync keep Supabase billing status accurate.</p>
-              </div>
-            </section>
-          </div>
-        )}
-
-        {/* â”€â”€ TEAM â”€â”€ */}
-        {activeModule === "team" && (
-          <div className="module-single-view">
-            <section className="card docs-card">
-              <h2>ðŸ‘¥ Team â€” {workspace.name}</h2>
-              <p className="helper-text">Invite team members to collaborate on this workspace. They need to have a DevFlow account first.</p>
-              <div className="invite-row">
-                <input className="auth-input" style={{marginBottom:0,flex:1}} placeholder="Enter teammate's email address" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&inviteMember()} />
-                <button onClick={inviteMember} disabled={inviting} style={{whiteSpace:"nowrap"}}>{inviting?"Inviting...":"Invite Member"}</button>
-              </div>
-              <div style={{marginTop:"24px",padding:"16px",background:"#f8fafc",borderRadius:"12px"}}>
-                <p style={{margin:0,color:"#374151",fontWeight:"bold"}}>Workspace Info</p>
-                <p style={{margin:"8px 0 0",color:"#64748b",fontSize:"14px"}}>Name: {workspace.name}</p>
-                <p style={{margin:"4px 0 0",color:"#64748b",fontSize:"14px"}}>Your role: {workspace.role || "owner"}</p>
-              </div>
-            </section>
-          </div>
-        )}
-
-      </main>
-    </div>
-  );
+ const [code, setCode] = useState("");
+ const [doc, setDoc] = useState("");
+ const [loading, setLoading] = useState(false);
+ const [fileName, setFileName] = useState("");
+ const [detectedLanguage, setLang] = useState("");
+ const [isDragging, setIsDragging] = useState(false);
+ const [notification, setNotification] = useState("");
+ const [errorMessage, setErrorMessage] = useState("");
+ const [uploadedCount, setUploadedCount] = useState(0);
+ const [aiEnabled, setAiEnabled] = useState(false);
+ const [selectedFileCount, setSelCount] = useState(0);
+ const [darkMode, setDarkMode] = useState(false);
+ const [bugLog, setBugLog] = useState("");
+ const [bugAnalysis, setBugAnalysis] = useState("");
+ const [bugLoading, setBugLoading] = useState(false);
+ const [healthReport, setHealthReport] = useState("");
+ const [requirementsText, setReqText] = useState("");
+ const [taskPlan, setTaskPlan] = useState("");
+ const [taskLoading, setTaskLoading] = useState(false);
+ const [activeModule, setActiveModule] = useState("docs");
+ const [savedDocs, setSavedDocs] = useState([]);
+ const [docsLoading, setDocsLoading] = useState(false);
+ const [selectedDoc, setSelectedDoc] = useState(null);
+ const [docOpening, setDocOpening] = useState(false);
+ const [saving, setSaving] = useState(false);
+ const [repoUrl, setRepoUrl] = useState("");
+ const [githubToken, setGithubToken] = useState("");
+ const [repoLoading, setRepoLoading] = useState(false);
+ const [repoDoc, setRepoDoc] = useState("");
+ const [repoName, setRepoName] = useState("");
+ const [inviteEmail, setInviteEmail] = useState("");
+ const [inviting, setInviting] = useState(false);
+ const [usageInfo, setUsageInfo] = useState(null);
+ const [usageLoading, setUsageLoading] = useState(false);
+ const [upgradePrompt, setUpgradePrompt] = useState(null);
+ const [billingLoading, setBillingLoading] = useState(false);
+
+ const selectedSummary = useMemo(() => {
+ if (!uploadedCount && !fileName) return "No files selected yet.";
+ if (selectedFileCount === 1) return `1 file selected: ${fileName}`;
+ return `${selectedFileCount} files selected.`;
+ }, [uploadedCount, selectedFileCount, fileName]);
+
+ const showNotification = msg => { setNotification(msg); setTimeout(() => setNotification(""), 2500); };
+ const showError = msg => { setErrorMessage(msg); setTimeout(() => setErrorMessage(""), 4000); };
+
+ const loadUsage = async () => {
+ setUsageLoading(true);
+ try {
+ const r = await authFetch("/billing/usage", { method: "GET" }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (!r.ok || d.error) return;
+ setUsageInfo(d.usage);
+ } catch {
+ // Keep the workspace usable even if usage panel fails temporarily.
+ } finally {
+ setUsageLoading(false);
+ }
+ };
+
+ const applyUsageFromResponse = (data) => {
+ if (data?.usage) setUsageInfo(data.usage);
+ };
+
+ const handleLimitReached = (data) => {
+ if (data?.usage) setUsageInfo(data.usage);
+ setUpgradePrompt(data || { error: "Free plan limit reached. Upgrade to continue." });
+ toast.error(data?.error || "Free plan limit reached. Upgrade to continue.");
+ };
+
+ const changeDemoPlan = async (plan) => {
+ try {
+ const r = await authFetch("/billing/demo-upgrade", {
+ method: "POST",
+ body: JSON.stringify({ plan }),
+ }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (!r.ok || d.error) { toast.error(d.error || "Could not change plan."); return; }
+ if (d.usage) setUsageInfo(d.usage);
+ toast.success(d.message || "Plan updated.");
+ setUpgradePrompt(null);
+ } catch {
+ toast.error("Could not connect to billing service.");
+ }
+ };
+
+ const startStripeCheckout = async (plan) => {
+ if (!plan || plan === "free") return;
+ setBillingLoading(true);
+ try {
+ const r = await authFetch("/billing/create-checkout-session", {
+ method: "POST",
+ body: JSON.stringify({ plan }),
+ }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (!r.ok || d.error) {
+ toast.error(d.error || "Could not start Stripe checkout.");
+ return;
+ }
+ if (!d.checkout_url) {
+ toast.error("Stripe checkout URL was not returned.");
+ return;
+ }
+ window.location.href = d.checkout_url;
+ } catch {
+ toast.error("Could not connect to Stripe checkout service.");
+ } finally {
+ setBillingLoading(false);
+ }
+ };
+
+ const openCustomerPortal = async () => {
+ setBillingLoading(true);
+ try {
+ const r = await authFetch("/billing/create-portal-session", {
+ method: "POST",
+ }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (!r.ok || d.error) {
+ toast.error(d.error || "Could not open Stripe customer portal.");
+ return;
+ }
+ if (d.portal_url) window.location.href = d.portal_url;
+ } catch {
+ toast.error("Could not connect to billing portal.");
+ } finally {
+ setBillingLoading(false);
+ }
+ };
+
+ const refreshStripeSubscription = async () => {
+ setBillingLoading(true);
+ try {
+ const r = await authFetch("/billing/refresh-subscription", {
+ method: "POST",
+ }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (!r.ok || d.error) {
+ toast.error(d.error || "Could not sync Stripe subscription.");
+ return;
+ }
+ if (d.usage) setUsageInfo(d.usage);
+ toast.success(d.message || "Stripe subscription synced.");
+ } catch {
+ toast.error("Could not connect to Stripe subscription service.");
+ } finally {
+ setBillingLoading(false);
+ }
+ };
+
+ const syncStripeSessionFromUrl = async () => {
+ const params = new URLSearchParams(window.location.search);
+ const sessionId = params.get("session_id");
+ const stripeSuccess = params.get("stripe_success");
+ const stripeCancelled = params.get("stripe_cancelled");
+
+ if (stripeCancelled) {
+ toast.error("Stripe checkout was cancelled.");
+ window.history.replaceState({}, document.title, window.location.pathname);
+ return;
+ }
+
+ if (!stripeSuccess || !sessionId) return;
+
+ setBillingLoading(true);
+ try {
+ const r = await authFetch("/billing/sync-session", {
+ method: "POST",
+ body: JSON.stringify({ session_id: sessionId }),
+ }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (!r.ok || d.error) {
+ toast.error(d.error || "Could not activate subscription.");
+ return;
+ }
+ if (d.usage) setUsageInfo(d.usage);
+ toast.success(d.message || "Subscription activated.");
+ setActiveModule("billing");
+ } catch {
+ toast.error("Could not verify Stripe checkout.");
+ } finally {
+ window.history.replaceState({}, document.title, window.location.pathname);
+ setBillingLoading(false);
+ }
+ };
+
+ const usageRows = useMemo(() => {
+ const f = usageInfo?.features || {};
+ return [
+ ["Docs + GitHub", f.documentation_generations],
+ ["Bug Analyzer", f.bug_analyzer],
+ ["Project Health", f.project_health],
+ ["Task Generator", f.task_generator],
+ ["Workspaces", usageInfo?.workspace],
+ ].filter(([, value]) => Boolean(value));
+ }, [usageInfo]);
+
+ const usageText = (item) => {
+ if (!item) return "";
+ if (item.unlimited || item.limit === null) return `${item.used} / Unlimited`;
+ return `${item.used} / ${item.limit}`;
+ };
+
+ // Load saved docs when switching to history tab
+ useEffect(() => {
+ if (activeModule === "history") {
+ setSelectedDoc(null);
+ loadDocs();
+ }
+ }, [activeModule]);
+
+ useEffect(() => {
+ loadUsage();
+ syncStripeSessionFromUrl();
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, []);
+
+ const loadDocs = async () => {
+ setDocsLoading(true);
+ try {
+ const r = await authFetch(`/workspaces/${workspace.id}/documents`, { method: "GET" }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (!r.ok || d.error) { toast.error(d.error || "Could not load documents."); return; }
+ setSavedDocs(d.documents || []);
+ } catch { toast.error("Could not load documents."); }
+ finally { setDocsLoading(false); }
+ };
+
+ const openSavedDoc = async (docId) => {
+ setDocOpening(true);
+ try {
+ const r = await authFetch(`/documents/${docId}`, { method: "GET" }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (!r.ok || d.error) { toast.error(d.error || "Could not open document."); return; }
+ setSelectedDoc(d.document);
+ } catch {
+ toast.error("Could not open document.");
+ } finally {
+ setDocOpening(false);
+ }
+ };
+
+ const saveWorkspaceDocument = async ({ title, language, content, file_count, successMessage }) => {
+ if (!content) { toast.error("Nothing to save yet."); return; }
+ setSaving(true);
+ try {
+ const r = await authFetch(`/workspaces/${workspace.id}/documents`, {
+ method: "POST",
+ body: JSON.stringify({
+ title: title || "Untitled DevFlow Document",
+ language: language || "Unknown",
+ content,
+ file_count: file_count || 1,
+ }),
+ }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (!r.ok || d.error) { toast.error(d.error || "Failed to save."); return; }
+ toast.success(successMessage || "Saved to workspace!");
+ if (activeModule === "history") loadDocs();
+ } finally {
+ setSaving(false);
+ }
+ };
+
+ const saveDoc = async () => {
+ if (!doc) { toast.error("Generate documentation first."); return; }
+ const title = fileName ? `Docs: ${fileName.split(",")[0]}` : "Untitled Documentation";
+ await saveWorkspaceDocument({
+ title,
+ language: detectedLanguage || "Documentation",
+ content: doc,
+ file_count: uploadedCount || 1,
+ successMessage: "Documentation saved to workspace!",
+ });
+ };
+
+ const saveHealthReport = async () => {
+ if (!healthReport) { toast.error("Generate project health report first."); return; }
+ const title = fileName ? `Health Report: ${fileName.split(",")[0]}` : "Project Health Report";
+ await saveWorkspaceDocument({
+ title,
+ language: "Project Health",
+ content: healthReport,
+ file_count: uploadedCount || 1,
+ successMessage: "Project health report saved to workspace!",
+ });
+ };
+
+ const deleteDoc = async (docId) => {
+ const r = await authFetch(`/documents/${docId}`, { method: "DELETE" }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (!r.ok || d.error) { toast.error(d.error || "Could not delete document."); return; }
+ setSavedDocs(prev => prev.filter(d => d.id !== docId));
+ if (selectedDoc?.id === docId) setSelectedDoc(null);
+ toast.success("Deleted.");
+ };
+
+ const inviteMember = async () => {
+ if (!inviteEmail.trim()) { toast.error("Enter an email address."); return; }
+ setInviting(true);
+ try {
+ const r = await authFetch(`/workspaces/${workspace.id}/members`, {
+ method: "POST",
+ body: JSON.stringify({ email: inviteEmail }),
+ }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (!r.ok || d.error) { toast.error(d.error || "Could not invite member."); return; }
+ toast.success(`${inviteEmail} added to workspace!`);
+ setInviteEmail("");
+ } finally { setInviting(false); }
+ };
+
+ const shouldIgnoreFile = filePath => {
+ const p = filePath.toLowerCase();
+ const ignoredParts = ["node_modules","venv",".venv","__pycache__",".git","dist","build",".next","coverage","images","assets","media",".cache"];
+ const ignoredFiles = ["package-lock.json","yarn.lock","pnpm-lock.yaml",".env",".env.local",".gitignore",".ds_store"];
+ const ignoredExts = [".png",".jpg",".jpeg",".gif",".svg",".ico",".pdf",".zip",".rar",".exe",".dll",".mp4",".mp3",".woff",".woff2",".ttf"];
+ if (ignoredParts.some(x => p.includes(x))) return true;
+ if (ignoredFiles.some(x => p.endsWith(x))) return true;
+ if (ignoredExts.some(x => p.endsWith(x))) return true;
+ return false;
+ };
+
+ const readFileAsText = file => new Promise((resolve, reject) => {
+ const reader = new FileReader();
+ reader.onload = e => resolve({ name: file.webkitRelativePath || file.name, content: e.target.result || "" });
+ reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+ reader.readAsText(file);
+ });
+
+ const handleFileUpload = async event => {
+ setErrorMessage("");
+ const selectedFiles = Array.from(event.target.files || []);
+ const supportedFiles = selectedFiles.filter(f => {
+ const fp = f.webkitRelativePath || f.name;
+ return !shouldIgnoreFile(fp) && f.size <= MAX_FILE_SIZE_MB * 1024 * 1024;
+ });
+ setSelCount(supportedFiles.length);
+ if (supportedFiles.length === 0) { showError("No supported code files found."); return; }
+ const filesToRead = supportedFiles.slice(0, MAX_TOTAL_FILES);
+ try {
+ const results = await Promise.all(filesToRead.map(readFileAsText));
+ setCode(results.map(f => `--- FILE: ${f.name} ---\n${f.content}`).join("\n\n"));
+ setDoc(""); setLang(""); setUploadedCount(results.length);
+ setFileName(results.map(f => f.name).join(", "));
+ showNotification(supportedFiles.length > MAX_TOTAL_FILES ? `Loaded first ${MAX_TOTAL_FILES} files only.` : "Files loaded successfully.");
+ } catch (e) { showError(e.message || "Failed to read files."); }
+ finally { event.target.value = ""; }
+ };
+
+ const handleDrop = async e => {
+ e.preventDefault(); e.stopPropagation(); setIsDragging(false);
+ try { await handleFileUpload({ target: { files: e.dataTransfer.files } }); }
+ catch { toast.error("Failed to read dropped files."); }
+ };
+
+ const cleanDoc = text => String(text||"").replace(/```python/g,"").replace(/```javascript/g,"").replace(/```/g,"").replace(/### /g,"").replace(/## /g,"").replace(/`/g,"");
+
+ const handleGenerateDoc = async () => {
+ if (!code.trim()) { showError("Please paste code or upload a project first."); return; }
+ setLoading(true); setDoc(""); setLang(""); setErrorMessage("");
+ try {
+ const r = await authFetch(`/generate-doc`, { method:"POST", body:JSON.stringify({code,fileName}) }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
+ if (!r.ok || d.error) throw new Error(d.error || "Something went wrong.");
+ setDoc(d.doc||"No documentation returned."); setLang(d.language||""); setAiEnabled(Boolean(d.aiEnabled));
+ applyUsageFromResponse(d);
+ showNotification("Documentation generated!");
+ } catch(e) { showError(e.message||"Failed to connect to backend."); }
+ finally { setLoading(false); }
+ };
+
+ const handleProjectHealth = async () => {
+ if (!code.trim()) { showError("Please upload a project first."); return; }
+ setLoading(true);
+ try {
+ const r = await authFetch(`/project-health`, { method:"POST", body:JSON.stringify({code}) }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
+ if (!r.ok || d.error) throw new Error(d.error||"Failed to generate health report.");
+ const rp = d.report;
+ setHealthReport(`Project Health Report\n\nScore: ${rp.score}\nProduction Readiness: ${rp.production_readiness||"N/A"}\nTotal Files: ${rp.total_files_detected}\n\nTech Stack:\n${(rp.tech_stack||[]).map(t=>"- "+t).join("\n")||"- Not detected"}\n\nDetected Routes:\n${rp.routes?.length ? rp.routes.map(r=>"- "+r).join("\n") : "- No routes detected"}\n\nIssues:\n${rp.issues?.length ? rp.issues.map(i=>"- "+i).join("\n") : "- No major issues"}\n\nSecurity Risks:\n${rp.security_risks?.length ? rp.security_risks.map(s=>"- "+s).join("\n") : "- None detected"}\n\nSuggestions:\n${rp.suggestions?.map(s=>"- "+s).join("\n")}`);
+ setActiveModule("health");
+ applyUsageFromResponse(d);
+ showNotification("Health report generated.");
+ } catch(e) { showError(e.message); }
+ finally { setLoading(false); }
+ };
+
+ const handleAnalyzeBug = async () => {
+ if (!bugLog.trim()) { showError("Please paste an error log first."); return; }
+ setBugLoading(true); setBugAnalysis("");
+ try {
+ const r = await authFetch(`/analyze-bug`, { method:"POST", body:JSON.stringify({error_log:bugLog}) }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
+ if (!r.ok) throw new Error(d.error||"Failed to analyze bug.");
+ setBugAnalysis(d.analysis||"No analysis returned."); applyUsageFromResponse(d); showNotification("Bug analyzed!");
+ } catch(e) { showError(e.message); }
+ finally { setBugLoading(false); }
+ };
+
+ const handleGenerateTasks = async () => {
+ if (!requirementsText.trim()) { showError("Please paste requirements first."); return; }
+ setTaskLoading(true); setTaskPlan("");
+ try {
+ const r = await authFetch(`/generate-tasks`, { method:"POST", body:JSON.stringify({requirements:requirementsText}) }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
+ if (!r.ok || d.error) throw new Error(d.error||"Failed to generate tasks.");
+ applyUsageFromResponse(d);
+ setTaskPlan(d.tasks.map(t=>`${t.title}\nPriority: ${t.priority}\nRole: ${t.role}\nEstimated Time: ${t.estimated_time}\n\nSubtasks:\n${t.subtasks.map(s=>"- "+s).join("\n")}\n\nAcceptance Criteria:\n${t.acceptance_criteria.map(a=>"- "+a).join("\n")}`).join("\n--------------------------\n"));
+ showNotification("Tasks generated!");
+ } catch(e) { showError(e.message); }
+ finally { setTaskLoading(false); }
+ };
+
+ const downloadTextFile = (content, name, type) => {
+ const blob = new Blob([content],{type}); const url = URL.createObjectURL(blob);
+ const a = document.createElement("a"); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
+ };
+
+ const handleExportPDF = () => {
+ if (!doc) { toast.error("Generate documentation first."); return; }
+ const pdf = new jsPDF("p","mm","a4");
+ const pw = pdf.internal.pageSize.getWidth(); const ph = pdf.internal.pageSize.getHeight();
+ const margin = 14; let y = 18; let page = 1;
+ const footer = () => { pdf.setFont("helvetica","normal"); pdf.setFontSize(8); pdf.text(`Page ${page}`, pw-margin-15, ph-8); };
+ pdf.setFont("helvetica","bold"); pdf.setFontSize(18); pdf.text("DevFlow",margin,y); y+=8;
+ pdf.setFont("helvetica","normal"); pdf.setFontSize(10); pdf.text("Generated Documentation",margin,y); y+=10;
+ pdf.setFont("courier","normal"); pdf.setFontSize(9);
+ pdf.splitTextToSize(cleanDoc(doc), pw-margin*2).forEach(line => {
+ if (y > ph-15) { footer(); pdf.addPage(); page++; y=18; pdf.setFont("courier","normal"); pdf.setFontSize(9); }
+ pdf.text(line,margin,y); y+=5;
+ });
+ footer(); pdf.save("devflow-documentation.pdf"); toast.success("PDF exported!");
+ };
+
+ const exportContentAsPDF = (title, content, fileNameToSave) => {
+ if (!content) { toast.error("Nothing to export yet."); return; }
+ const pdf = new jsPDF("p", "mm", "a4");
+ const pw = pdf.internal.pageSize.getWidth();
+ const ph = pdf.internal.pageSize.getHeight();
+ const margin = 14;
+ let y = 18;
+ let page = 1;
+ const footer = () => {
+ pdf.setFont("helvetica", "normal");
+ pdf.setFontSize(8);
+ pdf.text(`Page ${page}`, pw - margin - 15, ph - 8);
+ };
+ pdf.setFont("helvetica", "bold");
+ pdf.setFontSize(18);
+ pdf.text("DevFlow", margin, y);
+ y += 8;
+ pdf.setFont("helvetica", "normal");
+ pdf.setFontSize(10);
+ pdf.text(title, margin, y);
+ y += 10;
+ pdf.setFont("courier", "normal");
+ pdf.setFontSize(9);
+ pdf.splitTextToSize(cleanDoc(content), pw - margin * 2).forEach(line => {
+ if (y > ph - 15) {
+ footer();
+ pdf.addPage();
+ page += 1;
+ y = 18;
+ pdf.setFont("courier", "normal");
+ pdf.setFontSize(9);
+ }
+ pdf.text(line, margin, y);
+ y += 5;
+ });
+ footer();
+ pdf.save(fileNameToSave);
+ toast.success("PDF exported!");
+ };
+
+ const saveRepoDoc = async () => {
+ if (!repoDoc) { toast.error("Generate GitHub documentation first."); return; }
+ setSaving(true);
+ try {
+ const title = repoName ? `GitHub Docs: ${repoName}` : "GitHub Repository Documentation";
+ const r = await authFetch(`/workspaces/${workspace.id}/documents`, {
+ method: "POST",
+ body: JSON.stringify({
+ title,
+ language: "Repository",
+ content: repoDoc,
+ file_count: 1,
+ }),
+ }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (!r.ok || d.error) { toast.error(d.error || "Failed to save GitHub docs."); return; }
+ toast.success("GitHub documentation saved to workspace!");
+ if (activeModule === "history") loadDocs();
+ } finally {
+ setSaving(false);
+ }
+ };
+
+ const handleGithubDocument = async () => {
+ if (!repoUrl.trim()) { showError("Please enter a GitHub repository URL."); return; }
+ setRepoLoading(true); setRepoDoc("");
+ try {
+ const r = await authFetch(`/github/document`, {
+ method: "POST",
+ body: JSON.stringify({ repo_url: repoUrl, github_token: githubToken }),
+ }, onAuthExpired);
+ const d = await safeJson(r);
+ if (r.status === 401) return;
+ if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
+ if (!r.ok || !d.success) { showError(d.error || "Failed to fetch repo."); return; }
+ setRepoDoc(d.doc); setRepoName(d.repo_name); applyUsageFromResponse(d);
+ showNotification(`Fast GitHub report generated for ${d.file_count} files from ${d.repo_name}!`);
+ } catch(e) { showError("Could not connect to backend."); }
+ finally { setRepoLoading(false); }
+ };
+
+ const handleClearAll = () => {
+ setCode(""); setDoc(""); setFileName(""); setLang(""); setUploadedCount(0);
+ setAiEnabled(false); setErrorMessage(""); setHealthReport("");
+ setBugAnalysis(""); setBugLog(""); setReqText(""); setTaskPlan(""); setSelCount(0);
+ showNotification("Cleared.");
+ };
+
+ const billing = usageInfo?.billing || {};
+ const currentPlan = String(usageInfo?.plan || "free").toLowerCase();
+ const subscriptionStatus = billing.subscription_status || (currentPlan === "free" ? "free" : "active");
+ const periodEndLabel = billing.current_period_end
+ ? new Date(billing.current_period_end).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+ : "Not available";
+ const billingPlanCards = [
+ {
+ plan: "free",
+ title: "Free",
+ price: "$0",
+ suffix: "forever",
+ badge: "Starter",
+ description: "For testing DevFlow and small personal experiments.",
+ items: ["5 docs or GitHub reports per month", "1 workspace", "3 bug analyses", "2 health reports", "3 task generations"]
+ },
+ {
+ plan: "pro",
+ title: "Pro",
+ price: "$19",
+ suffix: "per month",
+ badge: "Most popular",
+ description: "For active developers building and documenting real projects.",
+ items: ["Unlimited documentation", "GitHub repo documentation", "3 workspaces", "Unlimited AI tools", "Priority AI responses"]
+ },
+ {
+ plan: "team",
+ title: "Team",
+ price: "$49",
+ suffix: "per user/month",
+ badge: "For companies",
+ description: "For software teams that need shared knowledge and billing control.",
+ items: ["Unlimited workspaces", "Unlimited team members", "Admin dashboard roadmap", "Audit logs roadmap", "Priority support roadmap"]
+ }
+ ];
+
+ return (
+ <div className={`app-container ${darkMode?"dark-mode":""}`}>
+ {notification && <div className="toast-notification">{notification}</div>}
+ {errorMessage && <div className="toast-notification error-toast">{errorMessage}</div>}
+
+ <header className="hero-section">
+ <div className="hero-top">
+ <h1>DevFlow</h1>
+ <div className="hero-user-bar">
+ <span className="workspace-badge"> {workspace.name}</span>
+ <button className="nav-small-btn" onClick={onSwitchWorkspace}>Switch</button>
+ <button className="nav-small-btn danger" onClick={onLogout}>Logout</button>
+ <button className="theme-toggle" onClick={() => setDarkMode(!darkMode)}>
+ {darkMode ? "Light" : "Dark"}
+ </button>
+ </div>
+ </div>
+
+ <div className="workspace-nav">
+ {["docs","bugs","health","tasks","github","history","team","billing"].map(m => (
+ <button key={m} className={activeModule===m?"nav-active":""} onClick={() => setActiveModule(m)}>
+ {m === "docs" ? "Documentation" : m === "bugs" ? "Bug Analyzer" : m === "health" ? "Project Health" : m === "tasks" ? "Task Generator" : m === "history" ? " Saved Docs" : m === "github" ? " GitHub" : m === "billing" ? " Billing" : " Team"}
+ </button>
+ ))}
+ </div>
+ <p>AI-powered developer workspace - {workspace.name}</p>
+ </header>
+
+ {upgradePrompt && (
+ <div className="loading-overlay">
+ <div className="loading-card" style={{maxWidth:"560px", textAlign:"left"}}>
+ <h2 style={{marginTop:0}}>Upgrade Required</h2>
+ <p>{upgradePrompt.error || "You reached your free plan limit."}</p>
+ <div style={{background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", padding:"14px", margin:"14px 0"}}>
+ <strong>Free plan limits</strong>
+ <p style={{margin:"8px 0 0", color:"#64748b"}}>5 docs/GitHub reports, 3 bug analyses, 2 health reports, 3 task generations, and 1 workspace per month.</p>
+ </div>
+ <div style={{display:"flex", gap:"10px", flexWrap:"wrap"}}>
+ <button onClick={() => { setUpgradePrompt(null); setActiveModule("billing"); }}>View Pricing</button>
+ <button className="secondary-btn" onClick={() => startStripeCheckout("pro")} disabled={billingLoading}>{billingLoading ? "Opening Stripe..." : "Upgrade to Pro"}</button>
+ <button className="danger-btn" onClick={() => setUpgradePrompt(null)}>Close</button>
+ </div>
+ </div>
+ </div>
+ )}
+
+ {usageInfo && (
+ <section style={{maxWidth:"1180px", margin:"18px auto 0", padding:"18px", background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:"20px", boxShadow:"0 10px 28px rgba(15, 23, 42, 0.06)"}}>
+ <div style={{display:"flex", justifyContent:"space-between", gap:"16px", alignItems:"center", flexWrap:"wrap"}}>
+ <div>
+ <strong style={{fontSize:"18px"}}>Plan: {String(usageInfo.plan || "free").toUpperCase()}</strong>
+ <p style={{margin:"4px 0 0", color:"#64748b"}}>Usage period: {usageInfo.period} {usageLoading ? " Refreshing..." : ""}</p>
+ </div>
+ <div style={{display:"flex", gap:"10px", flexWrap:"wrap"}}>
+ <button className="secondary-btn" onClick={loadUsage}>Refresh Usage</button>
+ <button onClick={() => setActiveModule("billing")}>Upgrade</button>
+ </div>
+ </div>
+ <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))", gap:"12px", marginTop:"16px"}}>
+ {usageRows.map(([label, item]) => (
+ <div key={label} style={{background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", padding:"12px"}}>
+ <span style={{display:"block", color:"#64748b", fontSize:"13px", marginBottom:"6px"}}>{label}</span>
+ <strong>{usageText(item)}</strong>
+ </div>
+ ))}
+ </div>
+ </section>
+ )}
+
+ <main className="main-grid">
+
+ {/* DOCUMENTATION */}
+ {activeModule === "docs" && (<>
+ <section className="card">
+ <h2>Paste or Upload Project Code</h2>
+ <div className="upload-module">
+ <label className="upload-label">Upload single or multiple files</label>
+ <input type="file" className="file-input" onChange={handleFileUpload} accept=".py,.js,.jsx,.ts,.tsx,.html,.css,.sql,.php,.java,.cpp,.c,.cs,.kt,.swift,.dart,.txt,.md,.json" multiple />
+ </div>
+ <div className="upload-module">
+ <label className="upload-label">Upload full project folder</label>
+ <input type="file" className="file-input" onChange={handleFileUpload} webkitdirectory="true" directory="true" multiple />
+ </div>
+ <p className="file-name">{selectedSummary}</p>
+ <div className={`drop-zone ${isDragging?"drag-active":""}`}
+ onDragEnter={e=>{e.preventDefault();e.stopPropagation();setIsDragging(true)}}
+ onDragOver={e=>{e.preventDefault();e.stopPropagation();setIsDragging(true)}}
+ onDragLeave={e=>{e.preventDefault();e.stopPropagation();setIsDragging(false)}}
+ onDrop={handleDrop}>
+ <strong>Drag & drop source files here</strong>
+ <span>or use the upload buttons above</span>
+ </div>
+ <textarea className="code-textarea" value={code} onChange={e=>{setCode(e.target.value);setDoc("");setLang("");setHealthReport("");}}
+ placeholder={`Upload files or paste code, then click Generate.\n\nSupported:\n- Single code snippets\n- Full files\n- Multiple files\n- Project folders`} />
+ {loading && <div className="loading-overlay"><div className="loading-card"><InfinitySpin width="220" color="#2563eb"/><h2>Analyzing Project...</h2><p>Generating documentation with AI...</p></div></div>}
+ <div className="button-row">
+ <button onClick={handleGenerateDoc} disabled={loading||!code.trim()}>{loading?"Generating...":"Generate"}</button>
+ <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>Health Check</button>
+ <button className="secondary-btn" onClick={saveDoc} disabled={!doc||saving}>{saving?"Saving...":" Save"}</button>
+ <button className="secondary-btn" onClick={()=>{if(!doc){toast.error("Generate first.");return;}navigator.clipboard.writeText(cleanDoc(doc));toast.success("Copied!");}}>Copy</button>
+ <button className="secondary-btn" onClick={()=>{if(!doc){toast.error("Generate first.");return;}downloadTextFile(doc,"documentation.md","text/markdown");toast.success("Markdown exported!");}}>Markdown</button>
+ <button className="secondary-btn" onClick={handleExportPDF} disabled={!doc}>PDF</button>
+ <button className="danger-btn" onClick={handleClearAll} disabled={loading}>Clear</button>
+ </div>
+ </section>
+ <section className="card docs-card">
+ <h2>Generated Documentation</h2>
+ <div className="stats-grid">
+ <div className="stat-card"><span>Files</span><strong>{uploadedCount}</strong></div>
+ <div className="stat-card"><span>AI Engine</span><strong>{aiEnabled?"Groq AI":"Rule-based"}</strong></div>
+ <div className="stat-card"><span>Language</span><strong>{detectedLanguage||"Waiting"}</strong></div>
+ </div>
+ <pre className={`output-box ${!doc?"empty-output":""}`}>
+ {doc ? cleanDoc(doc) : `Your generated documentation will appear here.\n\nGenerated docs are saved to your workspace automatically.`}
+ </pre>
+ </section>
+ </>)}
+
+ {/* BUG ANALYZER */}
+ {activeModule === "bugs" && (<>
+ <section className="card">
+ <h2>AI Bug Analyzer</h2>
+ <p className="helper-text">Paste an error log, traceback, or terminal error and get a clear explanation with suggested fixes.</p>
+ <textarea className="code-textarea" value={bugLog} onChange={e=>setBugLog(e.target.value)} placeholder="Paste your error log here..." />
+ {bugLoading && <div className="loading-overlay"><div className="loading-card"><InfinitySpin width="220" color="#2563eb"/><h2>Analyzing Bug...</h2><p>Reading the error log...</p></div></div>}
+ <div className="button-row">
+ <button onClick={handleAnalyzeBug} disabled={bugLoading||!bugLog.trim()}>{bugLoading?"Analyzing...":"Analyze Bug"}</button>
+ <button className="danger-btn" onClick={handleClearAll}>Clear</button>
+ </div>
+ </section>
+ <section className="card docs-card">
+ <h2>Bug Analysis Result</h2>
+ <pre className={`output-box ${!bugAnalysis?"empty-output":""}`}>{bugAnalysis||"Bug analysis will appear here."}</pre>
+ </section>
+ </>)}
+
+ {/* PROJECT HEALTH */}
+ {activeModule === "health" && (
+ <div className="module-single-view">
+ <section className="card docs-card">
+ <h2>Project Health Report</h2>
+ <p className="helper-text">Upload project code in the Documentation tab first, then generate a health report here.</p>
+ <div className="button-row">
+ <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>{loading?"Analyzing...":"Generate Health Report"}</button>
+ <button className="secondary-btn" onClick={saveHealthReport} disabled={!healthReport||saving}>{saving?"Saving...":" Save Health"}</button>
+ <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}navigator.clipboard.writeText(healthReport);toast.success("Copied!");}} disabled={!healthReport}>Copy</button>
+ <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}downloadTextFile(healthReport,"project-health-report.md","text/markdown");toast.success("Markdown exported!");}} disabled={!healthReport}>Markdown</button>
+ <button className="secondary-btn" onClick={()=>exportContentAsPDF("Project Health Report", healthReport, "project-health-report.pdf")} disabled={!healthReport}>PDF</button>
+ <button className="danger-btn" onClick={handleClearAll}>Clear</button>
+ </div>
+ <pre className={`output-box ${!healthReport?"empty-output":""}`}>{healthReport||"Project health report will appear here."}</pre>
+ </section>
+ </div>
+ )}
+
+ {/* TASK GENERATOR */}
+ {activeModule === "tasks" && (<>
+ <section className="card">
+ <h2>Team Task Generator</h2>
+ <p className="helper-text">Paste client requirements or meeting notes and generate developer-ready tasks.</p>
+ <textarea className="code-textarea" value={requirementsText} onChange={e=>setReqText(e.target.value)} placeholder="Paste client requirements, meeting notes, or feature ideas here..." />
+ {taskLoading && <div className="loading-overlay"><div className="loading-card"><InfinitySpin width="220" color="#2563eb"/><h2>Generating Tasks...</h2><p>Breaking down requirements...</p></div></div>}
+ <div className="button-row">
+ <button onClick={handleGenerateTasks} disabled={taskLoading||!requirementsText.trim()}>{taskLoading?"Generating...":"Generate Tasks"}</button>
+ <button className="danger-btn" onClick={handleClearAll}>Clear</button>
+ </div>
+ </section>
+ <section className="card docs-card">
+ <h2>Generated Tasks</h2>
+ <pre className={`output-box ${!taskPlan?"empty-output":""}`}>{taskPlan||"Generated team tasks will appear here."}</pre>
+ </section>
+ </>)}
+
+ {/* SAVED DOCS HISTORY */}
+ {activeModule === "history" && (
+ <div className="module-single-view">
+ <section className="card docs-card">
+ {!selectedDoc ? (
+ <>
+ <h2> Saved Documentation {workspace.name}</h2>
+ <p className="helper-text">Open saved documentation, GitHub repo reports, export them, or delete old records.</p>
+
+ {docsLoading ? (
+ <p style={{color:"#64748b"}}>Loading saved documents...</p>
+ ) : savedDocs.length === 0 ? (
+ <p style={{color:"#64748b"}}>No saved documents yet. Generate documentation or GitHub repo docs, then save them to your workspace.</p>
+ ) : (
+ <div className="docs-history-list">
+ {savedDocs.map(d => (
+ <div key={d.id} className="history-item">
+ <div className="history-info">
+ <strong>{d.title}</strong>
+ <span>{d.language} {d.file_count} file{d.file_count!==1?"s":""} {new Date(d.created_at).toLocaleDateString()}</span>
+ </div>
+ <div style={{display:"flex",gap:"10px",flexWrap:"wrap"}}>
+ <button className="secondary-btn small-btn" onClick={() => openSavedDoc(d.id)} disabled={docOpening}>
+ {docOpening ? "Opening..." : "Open"}
+ </button>
+ <button className="danger-btn small-btn" onClick={() => deleteDoc(d.id)}>Delete</button>
+ </div>
+ </div>
+ ))}
+ </div>
+ )}
+ </>
+ ) : (
+ <>
+ <div style={{display:"flex",justifyContent:"space-between",gap:"14px",alignItems:"flex-start",flexWrap:"wrap"}}>
+ <div>
+ <h2 style={{marginBottom:"6px"}}>{selectedDoc.title}</h2>
+ <p className="helper-text" style={{marginTop:0}}>
+ {selectedDoc.language || "Unknown"} {selectedDoc.file_count || 1} file{selectedDoc.file_count!==1?"s":""} Saved {new Date(selectedDoc.created_at).toLocaleDateString()}
+ </p>
+ </div>
+ <button className="secondary-btn" onClick={() => setSelectedDoc(null)}> Back to Saved Docs</button>
+ </div>
+
+ <div className="button-row" style={{marginTop:"18px"}}>
+ <button className="secondary-btn" onClick={() => {navigator.clipboard.writeText(cleanDoc(selectedDoc.content)); toast.success("Copied!");}}>Copy</button>
+ <button className="secondary-btn" onClick={() => {downloadTextFile(selectedDoc.content, `${selectedDoc.title || "devflow-documentation"}.md`.replace(/[^a-z0-9_.-]/gi, "-"), "text/markdown"); toast.success("Markdown exported!");}}>Markdown</button>
+ <button className="secondary-btn" onClick={() => exportContentAsPDF(selectedDoc.title || "Saved Documentation", selectedDoc.content, `${selectedDoc.title || "devflow-documentation"}.pdf`.replace(/[^a-z0-9_.-]/gi, "-"))}>PDF</button>
+ <button className="danger-btn" onClick={() => deleteDoc(selectedDoc.id)}>Delete</button>
+ </div>
+
+ <pre className={`output-box ${!selectedDoc.content?"empty-output":""}`}>
+ {selectedDoc.content || "No document content found."}
+ </pre>
+ </>
+ )}
+ </section>
+ </div>
+ )}
+
+ {/* GITHUB */}
+ {activeModule === "github" && (<>
+ <section className="card">
+ <h2>GitHub Integration</h2>
+ <p className="helper-text">Paste a GitHub repository URL and DevFlow will create a fast architecture-level repository report for onboarding, review, and documentation.</p>
+ <label className="upload-label">GitHub Repository URL</label>
+ <input className="auth-input" style={{marginBottom:"12px",fontFamily:"monospace"}} placeholder="https://github.com/username/reponame" value={repoUrl} onChange={e=>setRepoUrl(e.target.value)} />
+ <label className="upload-label">GitHub Token (optional for private repos)</label>
+ <input className="auth-input" style={{marginBottom:"12px",fontFamily:"monospace"}} placeholder="ghp_xxxxxxxxxxxx (leave empty for public repos)" type="password" value={githubToken} onChange={e=>setGithubToken(e.target.value)} />
+ <p className="helper-text">For private repos: go to GitHub Settings Developer Settings Personal Access Tokens Generate new token (classic) check <strong>repo</strong> scope.</p>
+ {repoLoading && <div className="loading-overlay"><div className="loading-card"><InfinitySpin width="220" color="#2563eb"/><h2>Fetching Repository...</h2><p>Scanning key files and generating a fast repository summary...</p></div></div>}
+ <div className="button-row">
+ <button onClick={handleGithubDocument} disabled={repoLoading||!repoUrl.trim()}>{repoLoading?"Fetching...":"Generate Fast Repo Docs"}</button>
+ <button className="secondary-btn" onClick={()=>{if(!repoDoc){toast.error("Generate GitHub docs first.");return;}navigator.clipboard.writeText(cleanDoc(repoDoc));toast.success("Copied!");}} disabled={!repoDoc}>Copy</button>
+ <button className="secondary-btn" onClick={()=>{if(!repoDoc){toast.error("Generate GitHub docs first.");return;}downloadTextFile(repoDoc,"github-repository-documentation.md","text/markdown");toast.success("Markdown exported!");}} disabled={!repoDoc}>Markdown</button>
+ <button className="secondary-btn" onClick={()=>exportContentAsPDF("GitHub Repository Documentation", repoDoc, "github-repository-documentation.pdf")} disabled={!repoDoc}>PDF</button>
+ <button className="secondary-btn" onClick={saveRepoDoc} disabled={!repoDoc||saving}>{saving?"Saving...":" Save"}</button>
+ <button className="danger-btn" onClick={()=>{setRepoUrl("");setRepoDoc("");setRepoName("");}}>Clear</button>
+ </div>
+ </section>
+ <section className="card docs-card">
+ <h2>Repository Documentation{repoName && <span style={{fontSize:"14px",color:"#64748b",marginLeft:"10px"}}> {repoName}</span>}</h2>
+ <pre className={`output-box ${!repoDoc?"empty-output":""}`}>{repoDoc||"Paste a GitHub URL and click Generate Docs.\n\nSupports:\n- Public repositories\n- Private repos (with token)\n- Any language"}</pre>
+ </section>
+ </>)}
+
+ {/* BILLING / USAGE */}
+ {activeModule === "billing" && (
+ <div className="module-single-view">
+ <section className="card billing-page">
+ <div className="billing-hero">
+ <div>
+ <span className="eyebrow">Phase 4 Billing</span>
+ <h2>Plan & Subscription</h2>
+ <p>Upgrade DevFlow with Stripe Checkout, manage billing in Stripe Customer Portal, and keep workspace limits aligned with the active plan.</p>
+ </div>
+ <div className={`plan-pill plan-${currentPlan}`}>
+ <span>Current plan</span>
+ <strong>{currentPlan.toUpperCase()}</strong>
+ </div>
+ </div>
+
+ <div className="billing-summary-grid">
+ <div className="billing-summary-card">
+ <span>Plan</span>
+ <strong>{currentPlan.toUpperCase()}</strong>
+ </div>
+ <div className="billing-summary-card">
+ <span>Billing period</span>
+ <strong>{usageInfo?.period || ""}</strong>
+ </div>
+ <div className="billing-summary-card">
+ <span>Subscription status</span>
+ <strong>{String(subscriptionStatus).replaceAll("_", " ")}</strong>
+ </div>
+ <div className="billing-summary-card">
+ <span>Renews / access through</span>
+ <strong>{periodEndLabel}</strong>
+ </div>
+ </div>
+
+ <div className={`billing-status-card ${billing.stripe_configured ? "ready" : "warning"}`}>
+ <div className="status-icon">{billing.stripe_configured ? "" : "!"}</div>
+ <div>
+ <strong>{billing.stripe_configured ? "Stripe is configured" : "Stripe is not configured yet"}</strong>
+ <p>
+ {billing.stripe_configured
+ ? "Users can upgrade through Stripe Checkout and manage subscription changes from the Stripe Customer Portal."
+ : "Add STRIPE_SECRET_KEY, STRIPE_PRO_PRICE_ID, and STRIPE_TEAM_PRICE_ID in your backend .env file to enable real payments."}
+ </p>
+ </div>
+ </div>
+
+ <div className="pricing-grid premium-pricing-grid">
+ {billingPlanCards.map(card => {
+ const isCurrent = card.plan === currentPlan;
+ const isPaidCard = card.plan !== "free";
+ const isFeatured = card.plan === "pro";
+
+ return (
+ <div
+ key={card.plan}
+ className={`pricing-card ${isFeatured ? "featured" : ""} ${isCurrent ? "current" : ""}`}
+ >
+ <div className="pricing-card-top">
+ <div>
+ <span className="pricing-badge">{card.badge}</span>
+ <h3>{card.title}</h3>
+ </div>
+ {isCurrent && <span className="current-badge">Active</span>}
+ </div>
+
+ <div className="price-line">
+ <strong>{card.price}</strong>
+ <span>{card.suffix}</span>
+ </div>
+
+ <p className="pricing-description">{card.description}</p>
+
+ <ul className="pricing-list">
+ {card.items.map(item => <li key={item}>{item}</li>)}
+ </ul>
+
+ {isCurrent ? (
+ <button className="pricing-btn muted" disabled>Current Plan</button>
+ ) : isPaidCard ? (
+ <button className="pricing-btn" onClick={() => startStripeCheckout(card.plan)} disabled={billingLoading}>
+ {billingLoading ? "Opening Stripe..." : `Upgrade to ${card.title}`}
+ </button>
+ ) : (
+ <button className="pricing-btn muted" disabled>Automatic after cancellation</button>
+ )}
+ </div>
+ );
+ })}
+ </div>
+
+ <div className="billing-actions">
+ <button className="secondary-btn" onClick={loadUsage} disabled={usageLoading}>
+ {usageLoading ? "Refreshing..." : "Refresh Billing"}
+ </button>
+ <button className="secondary-btn" onClick={refreshStripeSubscription} disabled={billingLoading || !billing.stripe_subscription_id}>
+ {billingLoading ? "Syncing..." : "Sync Stripe Status"}
+ </button>
+ <button onClick={openCustomerPortal} disabled={billingLoading || !billing.stripe_customer_id}>
+ {billingLoading ? "Opening..." : "Manage Stripe Subscription"}
+ </button>
+ </div>
+
+ <div className="billing-note">
+ <strong>Production note</strong>
+ <p>Stripe Checkout handles upgrades, Stripe Customer Portal handles cancellation and payment changes, and Stripe webhooks plus manual sync keep Supabase billing status accurate.</p>
+ </div>
+ </section>
+ </div>
+ )}
+
+ {/* TEAM */}
+ {activeModule === "team" && (
+ <div className="module-single-view">
+ <section className="card docs-card">
+ <h2>Team {workspace.name}</h2>
+ <p className="helper-text">Invite team members to collaborate on this workspace. They need to have a DevFlow account first.</p>
+ <div className="invite-row">
+ <input className="auth-input" style={{marginBottom:0,flex:1}} placeholder="Enter teammate's email address" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&inviteMember()} />
+ <button onClick={inviteMember} disabled={inviting} style={{whiteSpace:"nowrap"}}>{inviting?"Inviting...":"Invite Member"}</button>
+ </div>
+ <div style={{marginTop:"24px",padding:"16px",background:"#f8fafc",borderRadius:"12px"}}>
+ <p style={{margin:0,color:"#374151",fontWeight:"bold"}}>Workspace Info</p>
+ <p style={{margin:"8px 0 0",color:"#64748b",fontSize:"14px"}}>Name: {workspace.name}</p>
+ <p style={{margin:"4px 0 0",color:"#64748b",fontSize:"14px"}}>Your role: {workspace.role || "owner"}</p>
+ </div>
+ </section>
+ </div>
+ )}
+
+ </main>
+ </div>
+ );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// ROOT â€” controls which screen to show
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// 
+// ROOT controls which screen to show
+// 
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [workspace, setWorkspace] = useState(null);
-  const [checkingSession, setCheckingSession] = useState(true);
-  const [showAuth, setShowAuth] = useState(false);
-  const [authMode, setAuthMode] = useState("login");
-  const didBootstrap = useRef(false);
+ const [user, setUser] = useState(null);
+ const [workspace, setWorkspace] = useState(null);
+ const [checkingSession, setCheckingSession] = useState(true);
+ const [showAuth, setShowAuth] = useState(false);
+ const [authMode, setAuthMode] = useState("login");
+ const didBootstrap = useRef(false);
 
-  useEffect(() => {
-    if (didBootstrap.current) return;
-    didBootstrap.current = true;
+ useEffect(() => {
+ if (didBootstrap.current) return;
+ didBootstrap.current = true;
 
-    const boot = async () => {
-      const token = getToken();
-      const storedUser = getStoredUser();
+ const boot = async () => {
+ const token = getToken();
+ const storedUser = getStoredUser();
 
-      if (!token || !storedUser) {
-        clearSession();
-        setShowAuth(false);
-        setCheckingSession(false);
-        return;
-      }
+ if (!token || !storedUser) {
+ clearSession();
+ setShowAuth(false);
+ setCheckingSession(false);
+ return;
+ }
 
-      try {
-        let response = await fetch(`${API_BASE_URL}/auth/me`, { headers: authHeaders() });
-        let data = await safeJson(response);
+ try {
+ let response = await fetch(`${API_BASE_URL}/auth/me`, { headers: authHeaders() });
+ let data = await safeJson(response);
 
-        if (response.status === 401) {
-          const refreshed = await refreshSession();
-          if (!refreshed) {
-            clearSession();
-            setUser(null);
-            setWorkspace(null);
-            setCheckingSession(false);
-            return;
-          }
-          response = await fetch(`${API_BASE_URL}/auth/me`, { headers: authHeaders() });
-          data = await safeJson(response);
-        }
+ if (response.status === 401) {
+ const refreshed = await refreshSession();
+ if (!refreshed) {
+ clearSession();
+ setUser(null);
+ setWorkspace(null);
+ setCheckingSession(false);
+ return;
+ }
+ response = await fetch(`${API_BASE_URL}/auth/me`, { headers: authHeaders() });
+ data = await safeJson(response);
+ }
 
-        if (response.ok && data.user) {
-          setSession({ user: data.user });
-          setUser(data.user);
-        } else {
-          clearSession();
-          setUser(null);
-        }
-      } catch {
-        clearSession();
-        setUser(null);
-      } finally {
-        setCheckingSession(false);
-      }
-    };
+ if (response.ok && data.user) {
+ setSession({ user: data.user });
+ setUser(data.user);
+ } else {
+ clearSession();
+ setUser(null);
+ }
+ } catch {
+ clearSession();
+ setUser(null);
+ } finally {
+ setCheckingSession(false);
+ }
+ };
 
-    boot();
-  }, []);
+ boot();
+ }, []);
 
-  const handleLogin = u => {
-    setUser(u);
-    setWorkspace(null);
-    setShowAuth(false);
-  };
+ const handleLogin = u => {
+ setUser(u);
+ setWorkspace(null);
+ setShowAuth(false);
+ };
 
-  const openAuth = (mode = "login") => {
-    setAuthMode(mode);
-    setShowAuth(true);
-  };
+ const openAuth = (mode = "login") => {
+ setAuthMode(mode);
+ setShowAuth(true);
+ };
 
-  const handleLogout = () => {
-    clearSession();
-    setUser(null);
-    setWorkspace(null);
-    setShowAuth(false);
-  };
+ const handleLogout = () => {
+ clearSession();
+ setUser(null);
+ setWorkspace(null);
+ setShowAuth(false);
+ };
 
-  const handleAuthExpired = () => {
-    clearSession();
-    setUser(null);
-    setWorkspace(null);
-    toast.error("Session expired. Please log in again.");
-  };
+ const handleAuthExpired = () => {
+ clearSession();
+ setUser(null);
+ setWorkspace(null);
+ toast.error("Session expired. Please log in again.");
+ };
 
-  if (checkingSession) {
-    return (
-      <>
-        <Toaster position="top-right" />
-        <div className="auth-screen">
-          <div className="auth-card">
-            <h1 className="auth-logo">DevFlow</h1>
-            <p className="auth-tagline">Checking your session...</p>
-          </div>
-        </div>
-      </>
-    );
-  }
+ if (checkingSession) {
+ return (
+ <>
+ <Toaster position="top-right" />
+ <div className="auth-screen">
+ <div className="auth-card">
+ <h1 className="auth-logo">DevFlow</h1>
+ <p className="auth-tagline">Checking your session...</p>
+ </div>
+ </div>
+ </>
+ );
+ }
 
-  if (!user && !showAuth) {
-    return (
-      <>
-        <Toaster position="top-right" />
-        <LandingPage onStart={openAuth} />
-      </>
-    );
-  }
+ if (!user && !showAuth) {
+ return (
+ <>
+ <Toaster position="top-right" />
+ <LandingPage onStart={openAuth} />
+ </>
+ );
+ }
 
-  if (!user) {
-    return (
-      <>
-        <Toaster position="top-right" />
-        <AuthScreen
-          onLogin={handleLogin}
-          initialMode={authMode}
-          onBackToLanding={() => setShowAuth(false)}
-        />
-      </>
-    );
-  }
+ if (!user) {
+ return (
+ <>
+ <Toaster position="top-right" />
+ <AuthScreen
+ onLogin={handleLogin}
+ initialMode={authMode}
+ onBackToLanding={() => setShowAuth(false)}
+ />
+ </>
+ );
+ }
 
-  if (!workspace) return (<><Toaster position="top-right"/><WorkspaceSelector user={user} onSelect={setWorkspace} onLogout={handleLogout} onAuthExpired={handleAuthExpired}/></>);
-  return (<><Toaster position="top-right"/><MainApp user={user} workspace={workspace} onSwitchWorkspace={()=>setWorkspace(null)} onLogout={handleLogout} onAuthExpired={handleAuthExpired}/></>);
+ if (!workspace) return (<><Toaster position="top-right"/><WorkspaceSelector user={user} onSelect={setWorkspace} onLogout={handleLogout} onAuthExpired={handleAuthExpired}/></>);
+ return (<><Toaster position="top-right"/><MainApp user={user} workspace={workspace} onSwitchWorkspace={()=>setWorkspace(null)} onLogout={handleLogout} onAuthExpired={handleAuthExpired}/></>);
 }
 

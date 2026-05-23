@@ -1175,81 +1175,236 @@ button:disabled {
   }
 }
 
-/* DevFlow Clean Live Polish Patch V2 */
+/* DevFlow UI Scale + Encoding Fix V3 */
+html {
+  font-size: 14px !important;
+}
+
+body {
+  overflow-x: hidden !important;
+}
+
+.app-container {
+  padding: 22px 24px 50px !important;
+}
+
+.hero-section {
+  max-width: 1320px !important;
+  padding-top: 0 !important;
+  margin-bottom: 18px !important;
+}
+
+.hero-top {
+  margin-bottom: 14px !important;
+}
+
+.hero-section h1 {
+  font-size: clamp(38px, 4vw, 52px) !important;
+  letter-spacing: -0.055em !important;
+  line-height: 0.96 !important;
+}
+
+.hero-section p {
+  font-size: 16px !important;
+  margin-top: 8px !important;
+}
+
+.hero-user-bar {
+  gap: 8px !important;
+}
+
+.workspace-badge,
+.nav-small-btn,
+.theme-toggle {
+  min-height: 40px !important;
+  padding: 0 14px !important;
+  font-size: 14px !important;
+  border-radius: 13px !important;
+}
+
+.theme-toggle {
+  min-width: 52px !important;
+}
+
+.workspace-nav {
+  gap: 9px !important;
+  margin: 14px auto 14px !important;
+}
+
+.workspace-nav button {
+  min-height: 42px !important;
+  padding: 0 16px !important;
+  border-radius: 14px !important;
+  font-size: 14px !important;
+}
+
+.main-grid {
+  max-width: 1320px !important;
+  margin-top: 24px !important;
+  gap: 24px !important;
+}
+
+.card {
+  padding: 24px !important;
+  border-radius: 24px !important;
+}
+
+.card h2 {
+  font-size: 25px !important;
+  margin-bottom: 10px !important;
+}
+
+.helper-text {
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+}
+
+.file-input,
+.auth-input {
+  min-height: 50px !important;
+  padding: 0 15px !important;
+  font-size: 15px !important;
+}
+
+.drop-zone {
+  padding: 22px !important;
+  border-radius: 18px !important;
+}
+
+.code-textarea {
+  height: 250px !important;
+  min-height: 230px !important;
+  font-size: 14px !important;
+  padding: 18px !important;
+}
+
+.output-box {
+  height: 380px !important;
+  min-height: 380px !important;
+  max-height: 380px !important;
+  font-size: 13.5px !important;
+  padding: 20px !important;
+}
+
+.docs-card .output-box {
+  height: 520px !important;
+  min-height: 520px !important;
+  max-height: 520px !important;
+}
+
+.module-single-view .output-box {
+  height: 380px !important;
+  min-height: 380px !important;
+  max-height: 380px !important;
+}
+
+.billing-summary-grid,
+.stats-grid {
+  gap: 12px !important;
+  margin: 16px 0 !important;
+}
+
+.billing-summary-card,
+.stat-card {
+  padding: 14px !important;
+  border-radius: 16px !important;
+}
+
+.billing-summary-card strong,
+.stat-card strong {
+  font-size: 18px !important;
+}
+
 .auth-screen {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 32px;
+  min-height: 100vh !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 24px !important;
   background:
-    radial-gradient(circle at 20% 10%, rgba(37, 99, 235, 0.24), transparent 32%),
-    radial-gradient(circle at 90% 10%, rgba(79, 70, 229, 0.18), transparent 30%),
+    radial-gradient(circle at 20% 10%, rgba(37, 99, 235, 0.22), transparent 30%),
+    radial-gradient(circle at 90% 10%, rgba(79, 70, 229, 0.16), transparent 28%),
     linear-gradient(135deg, #0f172a 0%, #111827 100%) !important;
 }
 
 .auth-card {
-  width: min(100%, 760px) !important;
-  border-radius: 34px !important;
-  padding: 44px !important;
+  width: min(100%, 620px) !important;
+  padding: 34px !important;
+  border-radius: 28px !important;
   background: #ffffff !important;
-  box-shadow: 0 30px 90px rgba(15, 23, 42, 0.26) !important;
-  border: 1px solid rgba(226, 232, 240, 0.96) !important;
+  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.24) !important;
 }
 
 .auth-logo {
-  font-size: clamp(44px, 5vw, 62px) !important;
+  font-size: clamp(38px, 4vw, 50px) !important;
   line-height: 0.95 !important;
-  letter-spacing: -0.06em !important;
-  font-weight: 950 !important;
-  color: #2563eb !important;
-  margin-bottom: 10px !important;
+  letter-spacing: -0.055em !important;
+  margin-bottom: 8px !important;
 }
 
 .auth-tagline {
-  color: #64748b !important;
-  font-size: 18px !important;
-  margin-bottom: 26px !important;
+  font-size: 15px !important;
+  margin-bottom: 20px !important;
 }
 
 .auth-tabs {
-  display: grid !important;
-  grid-template-columns: 1fr 1fr !important;
-  gap: 12px !important;
-  margin: 22px 0 !important;
+  gap: 10px !important;
+  margin: 18px 0 !important;
 }
 
 .auth-tabs button,
 .auth-btn {
-  min-height: 56px !important;
-  border-radius: 16px !important;
-  font-weight: 900 !important;
+  min-height: 50px !important;
+  border-radius: 14px !important;
+  font-size: 14px !important;
 }
 
-.auth-input {
-  min-height: 58px !important;
-  border-radius: 16px !important;
-  border: 1px solid #e2e8f0 !important;
-  padding: 0 18px !important;
-  font-size: 17px !important;
-  margin-bottom: 12px !important;
+.pricing-grid {
+  gap: 16px !important;
 }
 
-.pricing-card,
-.card {
-  border-radius: 28px !important;
-  box-shadow: 0 20px 55px rgba(15, 23, 42, 0.10) !important;
+.pricing-card {
+  min-height: 390px !important;
+  padding: 20px !important;
+  border-radius: 22px !important;
+}
+
+.price-line strong {
+  font-size: 34px !important;
 }
 
 .toast-notification,
 .error-toast {
-  border-radius: 16px !important;
-  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.20) !important;
+  border-radius: 14px !important;
+  font-size: 14px !important;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 860px) {
+  .app-container {
+    padding: 18px 14px 40px !important;
+  }
+
+  .hero-section h1 {
+    font-size: 40px !important;
+  }
+
+  .workspace-nav {
+    justify-content: flex-start !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    padding-bottom: 8px !important;
+  }
+
+  .workspace-nav button {
+    flex: 0 0 auto !important;
+  }
+
+  .main-grid {
+    grid-template-columns: 1fr !important;
+  }
+
   .auth-card {
-    padding: 28px !important;
-    border-radius: 26px !important;
+    padding: 26px !important;
+    border-radius: 24px !important;
   }
 }
-/* End DevFlow Clean Live Polish Patch V2 */
+/* End DevFlow UI Scale + Encoding Fix V3 */
