@@ -25,6 +25,118 @@ const formatDocumentationMode = (mode) => {
 };
 
 
+const cleanDevFlowOutput = (text) => {
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/```(?:json|python|javascript|js|jsx|ts|tsx|bash|shell|html|css|markdown|md)?/gi, "")
+    .replace(/```/g, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^\s*#{1,6}\s*/gm, "")
+    .replace(/^\s*[-=]{6,}\s*$/gm, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
+
+const listToText = (items, fallback = "- None") => {
+  if (!Array.isArray(items) || items.length === 0) return fallback;
+  return items.map((item) => "- " + cleanDevFlowOutput(item)).join("\n");
+};
+
+const formatGeneratedTasks = (tasks) => {
+  if (!Array.isArray(tasks) || tasks.length === 0) return "No tasks returned.";
+
+  return tasks.map((task, index) => {
+    const title = cleanDevFlowOutput(task.title || `Task ${index + 1}`);
+    const sections = [
+      `Task ${index + 1}: ${title}`,
+      "",
+      `Summary: ${cleanDevFlowOutput(task.summary || "No summary provided.")}`,
+      `Priority: ${cleanDevFlowOutput(task.priority || "Medium")}`,
+      `Role: ${cleanDevFlowOutput(task.role || "Full Stack Developer")}`,
+      `Feature Area: ${cleanDevFlowOutput(task.feature_area || "General")}`,
+      `Estimated Time: ${cleanDevFlowOutput(task.estimated_time || "Not estimated")}`,
+    ];
+
+    if (task.user_story) {
+      sections.push("", "User Story", cleanDevFlowOutput(task.user_story));
+    }
+
+    sections.push(
+      "",
+      "Implementation Notes",
+      listToText(task.implementation_notes),
+      "",
+      "Subtasks",
+      listToText(task.subtasks),
+      "",
+      "Acceptance Criteria",
+      listToText(task.acceptance_criteria),
+      "",
+      "Dependencies",
+      listToText(task.dependencies),
+      "",
+      "QA Notes",
+      listToText(task.qa_notes),
+      "",
+      "Definition of Done",
+      listToText(task.definition_of_done)
+    );
+
+    return sections.join("\n");
+  }).join("\n\n----------------------------------------\n\n");
+};
+
+const formatHealthReport = (rp) => {
+  if (!rp) return "No health report returned.";
+
+  const sections = [
+    "Project Health Report",
+    "",
+    `Score: ${cleanDevFlowOutput(rp.score || "0/100")}`,
+    `Production Readiness: ${cleanDevFlowOutput(rp.production_readiness || "Not Ready")}`,
+    `Total Files: ${rp.total_files_detected || 0}`,
+    "",
+    "Why This Score",
+    listToText(rp.score_explanation),
+    "",
+    "Tech Stack",
+    listToText(rp.tech_stack, "- Not detected"),
+    "",
+    "Detected Frameworks",
+    listToText(rp.detected_frameworks),
+    "",
+    "Detected Routes",
+    listToText(rp.routes, "- No routes detected"),
+    "",
+    "Important Files",
+    listToText(rp.important_files),
+    "",
+    "Architecture Notes",
+    listToText(rp.architecture_notes),
+    "",
+    "Issues",
+    listToText(rp.issues, "- No major issues detected"),
+    "",
+    "Security Risks",
+    listToText(rp.security_risks, "- No concrete security risks detected"),
+    "",
+    "Priority Fixes",
+    listToText(rp.priority_fixes),
+    "",
+    "Suggestions",
+    listToText(rp.suggestions),
+    "",
+    "Testing Notes",
+    listToText(rp.testing_notes),
+  ];
+
+  return sections.join("\n");
+};
+
+
 const MAX_FILE_SIZE_MB = 2;
 const MAX_TOTAL_FILES = 80;
 
@@ -961,7 +1073,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
  if (!r.ok || d.error) throw new Error(d.error||"Failed to generate health report.");
  const rp = d.report;
- setHealthReport(`Project Health Report\n\nScore: ${rp.score}\nProduction Readiness: ${rp.production_readiness||"N/A"}\nTotal Files: ${rp.total_files_detected}\n\nTech Stack:\n${(rp.tech_stack||[]).map(t=>"- "+t).join("\n")||"- Not detected"}\n\nDetected Routes:\n${rp.routes?.length ? rp.routes.map(r=>"- "+r).join("\n") : "- No routes detected"}\n\nIssues:\n${rp.issues?.length ? rp.issues.map(i=>"- "+i).join("\n") : "- No major issues"}\n\nSecurity Risks:\n${rp.security_risks?.length ? rp.security_risks.map(s=>"- "+s).join("\n") : "- None detected"}\n\nSuggestions:\n${rp.suggestions?.map(s=>"- "+s).join("\n")}`);
+ setHealthReport(formatHealthReport(rp));
  setActiveModule("health");
  applyUsageFromResponse(d);
  showNotification("Health report generated.");
@@ -978,7 +1090,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  if (r.status === 401) return;
  if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
  if (!r.ok) throw new Error(d.error||"Failed to analyze bug.");
- setBugAnalysis(d.analysis||"No analysis returned."); applyUsageFromResponse(d); showNotification("Bug analyzed!");
+ setBugAnalysis(cleanDevFlowOutput(d.analysis || "No analysis returned.")); applyUsageFromResponse(d); showNotification("Bug analyzed!");
  } catch(e) { showError(e.message); }
  finally { setBugLoading(false); }
  };
@@ -993,7 +1105,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
  if (!r.ok || d.error) throw new Error(d.error||"Failed to generate tasks.");
  applyUsageFromResponse(d);
- setTaskPlan(d.tasks.map(t=>`${t.title}\nPriority: ${t.priority}\nRole: ${t.role}\nEstimated Time: ${t.estimated_time}\n\nSubtasks:\n${t.subtasks.map(s=>"- "+s).join("\n")}\n\nAcceptance Criteria:\n${t.acceptance_criteria.map(a=>"- "+a).join("\n")}`).join("\n--------------------------\n"));
+ setTaskPlan(formatGeneratedTasks(d.tasks || []));
  showNotification("Tasks generated!");
  } catch(e) { showError(e.message); }
  finally { setTaskLoading(false); }
@@ -1024,7 +1136,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
     let y = 20;
     let page = 1;
 
-    const prepared = cleanDoc(content);
+    const prepared = cleanDevFlowOutput(cleanDoc(content));
     const safeTitle = String(title || "DevFlow Documentation").replace(/[-_]+/g, " ").trim();
 
     const palette = {
@@ -1455,7 +1567,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <div className="stat-card"><span>Mode</span><strong>{documentationMode || "Smart Docs"}</strong></div>
  </div>
  <pre className={`output-box ${!doc?"empty-output":""}`}>
- {doc ? cleanDoc(doc) : `Your generated documentation will appear here.\n\nGenerated docs are saved to your workspace automatically.`}
+ {doc ? cleanDevFlowOutput(cleanDoc(doc)) : `Your generated documentation will appear here.\n\nGenerated docs are saved to your workspace automatically.`}
  </pre>
  </section>
  </>)}
@@ -1474,7 +1586,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  </section>
  <section className="card docs-card">
  <h2>Bug Analysis Result</h2>
- <pre className={`output-box ${!bugAnalysis?"empty-output":""}`}>{bugAnalysis||"Bug analysis will appear here."}</pre>
+ <pre className={`output-box ${!bugAnalysis?"empty-output":""}`}>{bugAnalysis ? cleanDevFlowOutput(bugAnalysis) : "Bug analysis will appear here."}</pre>
  </section>
  </>)}
 
@@ -1487,12 +1599,12 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <div className="button-row">
  <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>{loading?"Analyzing...":"Generate Health Report"}</button>
  <button className="secondary-btn" onClick={saveHealthReport} disabled={!healthReport||saving}>{saving?"Saving...":" Save Health"}</button>
- <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}navigator.clipboard.writeText(healthReport);toast.success("Copied!");}} disabled={!healthReport}>Copy</button>
- <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}downloadTextFile(healthReport,"project-health-report.md","text/markdown");toast.success("Markdown exported!");}} disabled={!healthReport}>Markdown</button>
+ <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}navigator.clipboard.writeText(cleanDevFlowOutput(healthReport));toast.success("Copied!");}} disabled={!healthReport}>Copy</button>
+ <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}downloadTextFile(cleanDevFlowOutput(healthReport),"project-health-report.md","text/markdown");toast.success("Markdown exported!");}} disabled={!healthReport}>Markdown</button>
  <button className="secondary-btn" onClick={()=>exportContentAsPDF("Project Health Report", healthReport, "project-health-report.pdf")} disabled={!healthReport}>PDF</button>
  <button className="danger-btn" onClick={handleClearAll}>Clear</button>
  </div>
- <pre className={`output-box ${!healthReport?"empty-output":""}`}>{healthReport||"Project health report will appear here."}</pre>
+ <pre className={`output-box ${!healthReport?"empty-output":""}`}>{healthReport ? cleanDevFlowOutput(healthReport) : "Project health report will appear here."}</pre>
  </section>
  </div>
  )}
@@ -1511,7 +1623,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  </section>
  <section className="card docs-card">
  <h2>Generated Tasks</h2>
- <pre className={`output-box ${!taskPlan?"empty-output":""}`}>{taskPlan||"Generated team tasks will appear here."}</pre>
+ <pre className={`output-box ${!taskPlan?"empty-output":""}`}>{taskPlan ? cleanDevFlowOutput(taskPlan) : "Generated team tasks will appear here."}</pre>
  </section>
  </>)}
 
@@ -1567,7 +1679,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  </div>
 
  <pre className={`output-box ${!selectedDoc.content?"empty-output":""}`}>
- {selectedDoc.content ? cleanDoc(selectedDoc.content) : "No document content found."}
+ {selectedDoc.content ? cleanDevFlowOutput(cleanDoc(selectedDoc.content)) : "No document content found."}
  </pre>
  </>
  )}
