@@ -48,7 +48,30 @@ def is_ai_enabled():
 
 
 # ── Groq ───────────────────────────────────────────────────────────────────────
-def call_groq(prompt: str, max_tokens: int = 3000) -> dict:
+# ── Improved Groq Call ─────────────────────────────────────────────────────
+def call_groq(prompt: str, max_tokens: int = 4200) -> dict:
+    if not GROQ_API_KEY:
+        return {"success": False, "error": "GROQ_API_KEY not set"}
+    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {"role": "system", "content": "You are an elite senior software architect and technical writer."},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.1,      # Lower = more consistent & professional
+        "max_tokens": max_tokens,
+    }
+    try:
+        r = requests.post(GROQ_URL, headers=headers, json=payload, timeout=75)
+        data = r.json()
+        if r.status_code != 200:
+            return {"success": False, "error": data.get("error", {}).get("message", "Groq error")}
+        return {"success": True, "text": data["choices"][0]["message"]["content"]}
+    except requests.exceptions.Timeout:
+        return {"success": False, "error": "Groq API timed out."}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
     if not GROQ_API_KEY:
         return {"success": False, "error": "GROQ_API_KEY not set"}
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
@@ -2307,7 +2330,116 @@ def build_rule_based_smart_documentation(code, file_name="", source="upload"):
     }
 
 
+# ── ELITE Smart Documentation Engine ───────────────────────────────────────
 def generate_ai_smart_documentation(code, file_name="", source="upload"):
+    """
+    Main smart documentation engine used by /generate-doc.
+    Major upgrade: Better prompt, more consistent output, better structure.
+    """
+    try:
+        files = smart_files_from_code(code, file_name)
+        input_type = smart_documentation_scope(code, files)
+        inventory = build_smart_file_inventory(files)
+
+        languages = sorted(set(item["language"] for item in inventory if item["language"]))
+        tech_stack, frameworks = v11_detect_health_frameworks([
+            {"file_name": file.get("file_name", ""), "content": file.get("content", "")}
+            for file in files
+        ])
+
+        if not is_ai_enabled():
+            return build_rule_based_smart_documentation(code, file_name, source)
+
+        # Better preview for large projects
+        preview_parts = []
+        used_chars = 0
+        max_preview_chars = 22000
+
+        for file in files[:30]:
+            header = f"--- FILE: {file.get('file_name', 'unknown')} ---\n"
+            body = str(file.get("content", ""))
+            remaining = max_preview_chars - used_chars - len(header)
+            if remaining <= 0:
+                break
+            snippet = body[:min(len(body), max(1400, remaining))]
+            preview_parts.append(header + snippet)
+            used_chars += len(header) + len(snippet)
+            if used_chars >= max_preview_chars:
+                break
+
+        file_inventory_text = "\n".join(
+            f"- {item['file_name']} | {item['language']} | {item['total_lines']} lines"
+            for item in inventory[:60]
+        )
+
+        all_routes = []
+        for item in inventory:
+            all_routes.extend(item["routes"])
+        routes_text = "\n".join(f"- {route}" for route in sorted(set(all_routes))[:40]) or "- No routes detected."
+
+        # ── ELITE PROMPT ─────────────────────────────────────────────────
+        prompt = f"""You are an elite senior software architect and technical writer.
+
+Create **exceptionally clear, professional, and actionable** documentation.
+
+### STRICT RULES:
+- Use clean Markdown with proper heading hierarchy
+- No **bold**, no emojis, no decorative formatting
+- Short paragraphs (max 5 lines)
+- Be precise and evidence-based
+- Focus on developer value
+
+### CONTEXT:
+Input Type: {input_type}
+Source: {source}
+Files: {len(files)}
+Languages: {', '.join(languages or tech_stack or ['Unknown'])}
+Frameworks: {', '.join(frameworks or ['None detected'])}
+
+### REQUIRED SECTIONS (in exact order):
+
+1. Executive Summary
+2. What This Project Does
+3. Technology Stack
+4. Architecture Overview
+5. Important Files & Modules
+6. Main Workflows
+7. API Routes
+8. Security & Risk Observations
+9. Suggested Improvements
+10. Quick Start / Setup
+11. Recommended Next Steps
+
+File Inventory:
+{file_inventory_text}
+
+Detected Routes:
+{routes_text}
+
+Code:
+{chr(10).join(preview_parts)}
+"""
+
+        result = call_groq(prompt, max_tokens=4200)
+
+        if result.get("success"):
+            return {
+                "doc": clean_devflow_text(result.get("text", "")),
+                "language": ", ".join(languages or tech_stack or ["Unknown"]),
+                "file_count": len(files),
+                "input_type": input_type,
+                "ai_error": "",
+            }
+
+        fallback = build_rule_based_smart_documentation(code, file_name, source)
+        fallback["ai_error"] = result.get("error", "AI generation failed.")
+        return fallback
+
+    except Exception as e:
+        logger.exception("Smart documentation engine failed")
+        fallback = build_rule_based_smart_documentation(code, file_name, source)
+        fallback["ai_error"] = str(e)
+        return fallback
     """
     Main smart documentation engine used by /generate-doc.
 
