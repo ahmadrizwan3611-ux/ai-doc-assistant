@@ -2101,9 +2101,15 @@ def generate_doc():
             "usage": build_usage_summary(request.user["id"]),
         })
 
-    except Exception:
-        logger.exception("Error generating doc")
-        return jsonify({"ok": False, "error": "Unexpected server error."}), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        logger.exception("Generate doc failed")
+        return jsonify({
+            "ok": False,
+            "error": str(e),
+            "type": type(e).__name__
+        }), 500
 
 
 @app.route("/analyze-bug", methods=["POST"])
