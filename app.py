@@ -2438,6 +2438,539 @@ Code:
         fallback["ai_error"] = str(e)
         return fallback
 
+
+def compact_large_upload_for_generate_docs(code, file_name="", target_chars=None):
+    """
+    Server-side safety compactor for large project uploads.
+
+    This prevents /generate-doc from failing with "Code is too large" when the
+    browser sends a full folder. It keeps the important project files, builds a
+    manifest, and sends excerpts from priority files to the documentation engine.
+    """
+    raw_code = str(code or "")
+    target_chars = int(target_chars or min(max(MAX_CODE_CHARS - 5000, 20000), 180000))
+
+    def normalize_path(value):
+        return str(value or "").replace("\\", "/").strip()
+
+    def priority_score(path):
+        p = normalize_path(path).lower()
+        base = p.split("/")[-1]
+
+        score = 10
+
+        high_value_exact = {
+            "app.py": 100,
+            "main.py": 95,
+            "server.py": 95,
+            "package.json": 92,
+            "requirements.txt": 92,
+            "procfile": 90,
+            "railway.json": 90,
+            "readme.md": 86,
+            "readme": 84,
+            "app.js": 84,
+            "app.jsx": 84,
+            "app.tsx": 84,
+            "index.js": 78,
+            "index.jsx": 78,
+            "index.tsx": 78,
+        }
+
+        if base in high_value_exact:
+            score = max(score, high_value_exact[base])
+
+        important_terms = [
+            "auth", "login", "billing", "stripe", "subscription", "webhook",
+            "supabase", "github", "workspace", "document", "generate", "health",
+            "bug", "task", "api", "route", "service", "config"
+        ]
+
+        for term in important_terms:
+            if term in p:
+                score += 12
+
+        if "/frontend/src/" in p or p.startswith("frontend/src/"):
+            score += 14
+
+        if p.endswith((".py", ".js", ".jsx", ".ts", ".tsx", ".json", ".css", ".md", ".txt", ".yml", ".yaml")):
+            score += 6
+
+        noisy_terms = [
+            "backup", "_backup", "hotfix", "fix_", ".old", ".bak", "screenshot",
+            "node_modules", "venv", ".venv", "__pycache__", ".git", "build", "dist",
+            "coverage", ".cache", "package-lock.json"
+        ]
+
+        for term in noisy_terms:
+            if term in p:
+                score -= 100
+
+        return score
+
+    def should_skip(path):
+        p = normalize_path(path).lower()
+        base = p.split("/")[-1]
+        skip_parts = [
+            "node_modules", "venv", ".venv", "__pycache__", ".git", "dist", "build",
+            ".next", "coverage", ".cache", ".pytest_cache", ".mypy_cache"
+        ]
+        skip_exts = [
+            ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".pdf", ".zip", ".rar",
+            ".7z", ".exe", ".dll", ".mp4", ".mp3", ".wav", ".woff", ".woff2", ".ttf",
+            ".otf", ".map", ".log", ".pyc"
+        ]
+        if any(part in p for part in skip_parts):
+            return True
+        if any(p.endswith(ext) for ext in skip_exts):
+            return True
+        if base in {".env", ".env.local", ".env.production", "package-lock.json", "yarn.lock", "pnpm-lock.yaml"}:
+            return True
+        if "backup" in base or "hotfix" in base or base.startswith("fix_"):
+            return True
+        return False
+
+    files = smart_files_from_code(raw_code, file_name)
+    filtered = []
+    skipped = 0
+
+    for file in files:
+        name = normalize_path(file.get("file_name") or file_name or "uploaded-code.txt")
+        content = str(file.get("content") or "")
+        if should_skip(name):
+            skipped += 1
+            continue
+        filtered.append({
+            "file_name": name,
+            "content": content,
+            "score": priority_score(name),
+            "lines": len(content.splitlines()),
+        })
+
+    if not filtered:
+        filtered = [{
+            "file_name": file_name or "uploaded-code.txt",
+            "content": raw_code[:target_chars],
+            "score": 50,
+            "lines": len(raw_code.splitlines()),
+        }]
+
+    filtered.sort(key=lambda item: (-item["score"], item["file_name"]))
+
+    manifest = "\n".join(
+        f"- {item['file_name']} | {detect_language(item['content'], item['file_name'])} | {item['lines']} lines | priority {item['score']}"
+        for item in filtered[:120]
+    )
+
+    header = "\n".join([
+        "DEVFLOW SMART SERVER COMPACTION",
+        "Input type: Full Project or Large Upload",
+        f"Original characters received: {len(raw_code)}",
+        f"Useful files detected: {len(filtered)}",
+        f"Noisy files skipped: {skipped}",
+        "",
+        "Instruction: Generate one professional project-level documentation report.",
+        "Instruction: Explain what the project does, architecture, technology stack, important files, workflows, API routes, risks, and practical improvements.",
+        "Instruction: Do not explain every file separately. Focus on important project behavior and developer handover value.",
+        "",
+        "Project file manifest:",
+        manifest,
+        "",
+        "Important source excerpts:",
+    ])
+
+    chunks = [header]
+    used = len(header)
+
+    for item in filtered:
+        name = item["file_name"]
+        content = item["content"]
+        language = detect_language(content, name)
+        lines = content.splitlines()
+
+        if item["score"] >= 95:
+            head_count, tail_count, char_cap = 170, 55, 18000
+        elif item["score"] >= 75:
+            head_count, tail_count, char_cap = 110, 35, 11000
+        else:
+            head_count, tail_count, char_cap = 60, 20, 5500
+
+        important_lines = []
+        for raw_line in lines:
+            line = raw_line.strip()
+            if (
+                line.startswith("import ") or
+                line.startswith("from ") or
+                line.startswith("def ") or
+                line.startswith("class ") or
+                line.startswith("@app.route") or
+                line.startswith("function ") or
+                line.startswith("const ") or
+                line.startswith("export ") or
+                "fetch(" in line or
+                "stripe" in line.lower() or
+                "supabase" in line.lower() or
+                "github" in line.lower()
+            ):
+                important_lines.append(raw_line)
+            if len(important_lines) >= 90:
+                break
+
+        excerpt_parts = [
+            f"--- FILE: {name} ---",
+            f"LANGUAGE: {language}",
+            f"TOTAL_LINES: {item['lines']}",
+            f"PRIORITY: {item['score']}",
+            "",
+            "IMPORTANT_LINES:",
+            "\n".join(important_lines) or "- No important signatures detected.",
+            "",
+            "FILE_START_EXCERPT:",
+            "\n".join(lines[:head_count]),
+            "",
+            "FILE_END_EXCERPT:",
+            "\n".join(lines[-tail_count:]) if len(lines) > tail_count else "",
+        ]
+
+        block = "\n".join(excerpt_parts)
+        if len(block) > char_cap:
+            block = block[:char_cap] + "\n\n[Excerpt trimmed safely for server request size]"
+
+        if used + len(block) + 4 > target_chars:
+            continue
+
+        chunks.append(block)
+        used += len(block) + 4
+
+    final_code = "\n\n".join(chunks)
+
+    if len(final_code) > target_chars:
+        final_code = final_code[:target_chars - 500] + "\n\nSMART_COMPACTION_NOTE\nRemaining content was trimmed safely on the server."
+
+    return final_code
+
+
+# ── Professional PDF Export ────────────────────────────────────────────────────
+@app.route("/export-pdf", methods=["POST"])
+@require_auth
+def export_pdf():
+    """Generate a professional branded PDF from DevFlow documentation content."""
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.units import mm
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+        from reportlab.platypus import (
+            SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+            HRFlowable, PageBreak, KeepTogether
+        )
+        from reportlab.platypus.flowables import Flowable
+        from reportlab.pdfgen import canvas as rl_canvas
+        import io
+
+        data = request.get_json(silent=True) or {}
+        content      = str(data.get("content", "")).strip()
+        title        = str(data.get("title", "DevFlow Documentation")).strip()
+        language     = str(data.get("language", "")).strip()
+        file_count   = int(data.get("fileCount", 1))
+        mode         = str(data.get("mode", "")).strip()
+        workspace    = str(data.get("workspace", "")).strip()
+
+        if not content:
+            return jsonify({"ok": False, "error": "No content provided."}), 400
+
+        # ── Color palette ──────────────────────────────────────────────────────
+        INK          = colors.HexColor("#0f172a")
+        BLUE         = colors.HexColor("#2563eb")
+        BLUE_DARK    = colors.HexColor("#1e40af")
+        BLUE_LIGHT   = colors.HexColor("#dbeafe")
+        SLATE        = colors.HexColor("#334155")
+        MUTED        = colors.HexColor("#64748b")
+        LINE         = colors.HexColor("#e2e8f0")
+        SOFT_BG      = colors.HexColor("#f8fafc")
+        WHITE        = colors.white
+        ACCENT       = colors.HexColor("#0ea5e9")
+        GREEN        = colors.HexColor("#059669")
+
+        buf = io.BytesIO()
+        W, H = A4
+        margin = 20 * mm
+
+        # ── Canvas callbacks for header/footer ────────────────────────────────
+        export_date = datetime.now(timezone.utc).strftime("%B %d, %Y")
+        safe_title  = title[:80]
+
+        def on_first_page(canv, doc):
+            canv.saveState()
+            # Full-width dark header band
+            canv.setFillColor(INK)
+            canv.rect(0, H - 58 * mm, W, 58 * mm, fill=1, stroke=0)
+
+            # DevFlow logo text
+            canv.setFont("Helvetica-Bold", 28)
+            canv.setFillColor(WHITE)
+            canv.drawString(margin, H - 24 * mm, "DevFlow")
+
+            # Tagline
+            canv.setFont("Helvetica", 10)
+            canv.setFillColor(colors.HexColor("#94a3b8"))
+            canv.drawString(margin, H - 32 * mm, "AI-powered developer documentation")
+
+            # Accent bar
+            canv.setFillColor(BLUE)
+            canv.rect(0, H - 60 * mm, W, 3 * mm, fill=1, stroke=0)
+
+            # Document title area
+            canv.setFont("Helvetica-Bold", 20)
+            canv.setFillColor(INK)
+            canv.drawString(margin, H - 74 * mm, safe_title[:70])
+
+            # Meta row
+            meta_y = H - 83 * mm
+            canv.setFillColor(SOFT_BG)
+            canv.roundRect(margin, meta_y - 5 * mm, W - 2 * margin, 12 * mm, 3 * mm, fill=1, stroke=0)
+            canv.setFont("Helvetica", 9)
+            canv.setFillColor(MUTED)
+            meta_parts = [f"Exported {export_date}"]
+            if language:  meta_parts.append(f"Language: {language}")
+            if file_count: meta_parts.append(f"Files: {file_count}")
+            if mode:      meta_parts.append(f"Mode: {mode}")
+            if workspace: meta_parts.append(f"Workspace: {workspace}")
+            canv.drawString(margin + 4 * mm, meta_y + 2 * mm, "   ·   ".join(meta_parts))
+
+            # Footer
+            _draw_footer(canv, doc, 1)
+            canv.restoreState()
+
+        def on_later_pages(canv, doc):
+            canv.saveState()
+            # Slim top bar
+            canv.setFillColor(INK)
+            canv.rect(0, H - 12 * mm, W, 12 * mm, fill=1, stroke=0)
+            canv.setFont("Helvetica-Bold", 8)
+            canv.setFillColor(WHITE)
+            canv.drawString(margin, H - 7 * mm, "DevFlow")
+            canv.setFont("Helvetica", 8)
+            canv.setFillColor(colors.HexColor("#94a3b8"))
+            canv.drawRightString(W - margin, H - 7 * mm, safe_title[:60])
+            _draw_footer(canv, doc, doc.page)
+            canv.restoreState()
+
+        def _draw_footer(canv, doc, page_num):
+            y = 10 * mm
+            canv.setStrokeColor(LINE)
+            canv.setLineWidth(0.5)
+            canv.line(margin, y + 4 * mm, W - margin, y + 4 * mm)
+            canv.setFont("Helvetica", 7.5)
+            canv.setFillColor(MUTED)
+            canv.drawString(margin, y, "Generated by DevFlow · AI-powered developer documentation")
+            canv.drawRightString(W - margin, y, f"Page {page_num}")
+
+        # ── Styles ─────────────────────────────────────────────────────────────
+        styles = getSampleStyleSheet()
+
+        def make_style(name, **kw):
+            return ParagraphStyle(name, **kw)
+
+        style_h1 = make_style("H1",
+            fontName="Helvetica-Bold", fontSize=16, textColor=INK,
+            spaceAfter=4*mm, spaceBefore=6*mm, leading=22)
+
+        style_h2 = make_style("H2",
+            fontName="Helvetica-Bold", fontSize=13, textColor=BLUE_DARK,
+            spaceAfter=2*mm, spaceBefore=5*mm, leading=18, borderPad=0)
+
+        style_h3 = make_style("H3",
+            fontName="Helvetica-Bold", fontSize=11, textColor=SLATE,
+            spaceAfter=1.5*mm, spaceBefore=3*mm, leading=15)
+
+        style_body = make_style("Body",
+            fontName="Helvetica", fontSize=9.5, textColor=INK,
+            spaceAfter=2*mm, leading=14)
+
+        style_bullet = make_style("Bullet",
+            fontName="Helvetica", fontSize=9.5, textColor=INK,
+            spaceAfter=1*mm, leading=14, leftIndent=10*mm,
+            bulletIndent=3*mm)
+
+        style_meta_key = make_style("MetaKey",
+            fontName="Helvetica-Bold", fontSize=9, textColor=SLATE,
+            spaceAfter=0, leading=13)
+
+        style_meta_val = make_style("MetaVal",
+            fontName="Helvetica", fontSize=9, textColor=INK,
+            spaceAfter=0, leading=13)
+
+        style_muted = make_style("Muted",
+            fontName="Helvetica-Oblique", fontSize=8.5, textColor=MUTED,
+            spaceAfter=1*mm, leading=12)
+
+        SECTION_HEADINGS = {
+            "executive summary", "overview", "file purpose", "project purpose",
+            "what this project does", "technology stack", "technology detected",
+            "architecture overview", "important files", "important functions",
+            "important functions and classes", "function and method explanations",
+            "main workflows", "api routes", "routes if any", "important logic",
+            "dependencies", "security observations", "security risks", "risks",
+            "suggested improvements", "improvement roadmap", "developer handover notes",
+            "how to run", "how to run / setup", "setup notes", "large file summary",
+            "detected functions", "why this score", "detected frameworks",
+            "detected routes", "architecture notes", "issues", "priority fixes",
+            "testing notes", "what the error means", "why it happened",
+            "likely cause", "step-by-step fix", "fixed version", "prevention",
+            "summary", "implementation notes", "subtasks", "acceptance criteria",
+            "definition of done", "qa notes", "tech stack",
+        }
+
+        def clean_line(text):
+            return (str(text or "")
+                .replace("**", "").replace("__", "")
+                .replace("`", "")
+                .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .strip())
+
+        def is_section_heading(line):
+            v = str(line or "").strip()
+            if not v: return False
+            norm = v.lstrip("#").rstrip(":：").strip().lower()
+            if norm in SECTION_HEADINGS: return True
+            if len(v) <= 64 and not v.startswith(("-", "*", "•")) and not v[0].isdigit():
+                if not any(c in v for c in ".;"):
+                    import re as _re
+                    if _re.match(r"^[A-Z][A-Za-z0-9 /&()+-]+$", v):
+                        return True
+            return False
+
+        def is_meta_line(line):
+            import re as _re
+            v = str(line or "").strip()
+            return bool(_re.match(r"^[A-Za-z][A-Za-z0-9 /&()+-]{1,36}:\s+.+$", v) and len(v) <= 150)
+
+        # ── Parse content into flowables ───────────────────────────────────────
+        # Clean markdown artifacts
+        import re as _re
+        cleaned = (content
+            .replace("\r\n", "\n")
+            .replace("\r", "\n"))
+        # strip code fences
+        cleaned = _re.sub(r"```[a-z]*\n?", "", cleaned)
+        cleaned = _re.sub(r"\*\*(.*?)\*\*", r"\1", cleaned)
+        cleaned = _re.sub(r"`([^`]+)`", r"\1", cleaned)
+        cleaned = _re.sub(r"^\s*#{1,6}\s*", "", cleaned, flags=_re.MULTILINE)
+        cleaned = _re.sub(r"^\s*[-=]{6,}\s*$", "", cleaned, flags=_re.MULTILINE)
+        cleaned = _re.sub(r"\n{3,}", "\n\n", cleaned)
+
+        lines = [l.rstrip() for l in cleaned.split("\n")]
+
+        story = []
+        # First page top margin (below the header band)
+        story.append(Spacer(1, 32 * mm))
+
+        i = 0
+        while i < len(lines):
+            raw = lines[i]
+            trimmed = raw.strip()
+            i += 1
+
+            if not trimmed:
+                story.append(Spacer(1, 2 * mm))
+                continue
+
+            # Bullet point
+            bullet_m = _re.match(r"^[-*•]\s+(.+)$", trimmed)
+            if bullet_m:
+                story.append(Paragraph(f"• {clean_line(bullet_m.group(1))}", style_bullet))
+                continue
+
+            # Numbered list
+            num_m = _re.match(r"^\d+\.\s+(.+)$", trimmed)
+            if num_m:
+                story.append(Paragraph(f"   {clean_line(num_m.group(1))}", style_bullet))
+                continue
+
+            # Section heading
+            if is_section_heading(trimmed):
+                label = trimmed.lstrip("#").rstrip(":：").strip()
+                elems = [
+                    Spacer(1, 3 * mm),
+                    Paragraph(clean_line(label), style_h2),
+                    HRFlowable(width="100%", thickness=0.8, color=BLUE_LIGHT, spaceAfter=2*mm),
+                ]
+                story.append(KeepTogether(elems))
+                continue
+
+            # Meta row (Key: value)
+            if is_meta_line(trimmed):
+                colon = trimmed.index(":")
+                key   = trimmed[:colon].strip()
+                val   = trimmed[colon + 1:].strip()
+                tbl = Table(
+                    [[Paragraph(clean_line(key), style_meta_key),
+                      Paragraph(clean_line(val),  style_meta_val)]],
+                    colWidths=[(W - 2*margin) * 0.28, (W - 2*margin) * 0.72],
+                    hAlign="LEFT"
+                )
+                tbl.setStyle(TableStyle([
+                    ("VALIGN", (0,0), (-1,-1), "TOP"),
+                    ("BOTTOMPADDING", (0,0), (-1,-1), 2),
+                    ("TOPPADDING",    (0,0), (-1,-1), 2),
+                ]))
+                story.append(tbl)
+                story.append(Spacer(1, 1 * mm))
+                continue
+
+            # Source file banner
+            sf_m = _re.match(r"^(?:#\s*)?Source File:\s*(.+)$", trimmed, _re.IGNORECASE)
+            if sf_m:
+                fname = sf_m.group(1).strip()[:90]
+                tbl = Table(
+                    [[Paragraph("📄 " + clean_line(fname), make_style("SF",
+                        fontName="Helvetica-Bold", fontSize=10, textColor=INK, leading=14))]],
+                    colWidths=[W - 2 * margin],
+                    hAlign="LEFT"
+                )
+                tbl.setStyle(TableStyle([
+                    ("BACKGROUND",    (0,0), (0,0), SOFT_BG),
+                    ("ROUNDEDCORNERS",(0,0), (0,0), [3]),
+                    ("TOPPADDING",    (0,0), (0,0), 5),
+                    ("BOTTOMPADDING", (0,0), (0,0), 5),
+                    ("LEFTPADDING",   (0,0), (0,0), 8),
+                    ("BOX",           (0,0), (0,0), 0.5, LINE),
+                ]))
+                story.append(Spacer(1, 2 * mm))
+                story.append(tbl)
+                story.append(Spacer(1, 2 * mm))
+                continue
+
+            # Regular paragraph
+            story.append(Paragraph(clean_line(trimmed), style_body))
+
+        # Build PDF
+        doc = SimpleDocTemplate(
+            buf, pagesize=A4,
+            leftMargin=margin, rightMargin=margin,
+            topMargin=18 * mm, bottomMargin=18 * mm,
+            title=safe_title,
+            author="DevFlow",
+        )
+        doc.build(story, onFirstPage=on_first_page, onLaterPages=on_later_pages)
+
+        buf.seek(0)
+        from flask import send_file
+        safe_fname = _re.sub(r"[^a-z0-9_-]", "-", safe_title.lower())[:48]
+        return send_file(
+            buf,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"devflow-{safe_fname}.pdf",
+        )
+
+    except Exception:
+        logger.exception("PDF export failed")
+        return jsonify({"ok": False, "error": "PDF export failed on server."}), 500
+
+
 @app.route("/generate-doc", methods=["POST"])
 @require_auth
 def generate_doc():
@@ -2450,7 +2983,12 @@ def generate_doc():
             return jsonify({"ok": False, "error": "No code provided."}), 400
 
         if len(code) > MAX_CODE_CHARS:
-            return jsonify({"ok": False, "error": "Code is too large."}), 413
+            logger.info("Large generate-doc upload received. Applying smart server compaction.")
+            code = compact_large_upload_for_generate_docs(code, file_name)
+            file_name = file_name or "smart-project-upload"
+
+        if len(code) > MAX_CODE_CHARS:
+            code = code[: max(20000, MAX_CODE_CHARS - 1000)] + "\n\nSMART_COMPACTION_NOTE\nFinal safety trim applied before documentation generation."
 
         allowed, usage_summary = ensure_usage_allowed(request.user["id"], "documentation_generations")
         if not allowed:

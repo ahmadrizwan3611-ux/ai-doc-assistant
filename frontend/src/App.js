@@ -264,14 +264,15 @@ const compactSourceFile = (file, index) => {
   const priority = scoreProjectFile(name);
   const language = getExtensionLanguage(name);
   const importantLines = extractImportantCodeLines(content);
-  const fullLimit = priority >= 82 ? 14000 : priority >= 55 ? 7000 : 3000;
+  // Tighter limits when many files are present — keeps total under 150k for 50+ file projects
+  const fullLimit = priority >= 82 ? 8000 : priority >= 55 ? 3500 : 1500;
 
   if (content.length <= fullLimit) {
     return `--- FILE: ${name} ---\nLANGUAGE: ${language}\nTOTAL_LINES: ${lines.length}\nPRIORITY: ${priority}\n${content}`;
   }
 
-  const head = lines.slice(0, priority >= 82 ? 140 : 60).join("\n");
-  const tail = lines.slice(priority >= 82 ? -45 : -18).join("\n");
+  const head = lines.slice(0, priority >= 82 ? 80 : 35).join("\n");
+  const tail = lines.slice(priority >= 82 ? -25 : -12).join("\n");
 
   return [
     `--- FILE: ${name} ---`,
@@ -500,7 +501,8 @@ const formatHealthReport = (rp) => {
 
 const MAX_FILE_SIZE_MB = 8;
 const MAX_TOTAL_FILES = 120;
-const MAX_BACKEND_CODE_CHARS = 85000;
+// Increased from 85k — server-side smart compaction handles 50+ file projects safely
+const MAX_BACKEND_CODE_CHARS = 150000;
 
 // Auth helpers 
 const getToken = () => localStorage.getItem("devflow_token");
@@ -1534,12 +1536,41 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  const a = document.createElement("a"); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
  };
 
- const handleExportPDF = () => {
+ const handleExportPDF = async () => {
     if (!doc) {
       toast.error("Generate documentation first.");
       return;
     }
-    exportContentAsPDF("DevFlow Documentation", doc, "devflow-documentation.pdf");
+    try {
+      toast.loading("Generating professional PDF...", { id: "pdf-export" });
+      const r = await authFetch("/export-pdf", {
+        method: "POST",
+        body: JSON.stringify({
+          content: doc,
+          title: fileName ? `${fileName.replace(/[-_]+/g, " ")} — Documentation` : "DevFlow Documentation",
+          language: detectedLanguage || "",
+          fileCount: uploadedCount || 1,
+          mode: documentationMode || "",
+          workspace: workspace?.name || "",
+        }),
+      }, onAuthExpired);
+
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error || "PDF export failed.");
+      }
+
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `devflow-documentation-${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Professional PDF downloaded!", { id: "pdf-export" });
+    } catch (e) {
+      toast.error(e.message || "PDF export failed.", { id: "pdf-export" });
+    }
   }; const exportContentAsPDF = (title, content, fileNameToSave) => {
     if (!content) {
       toast.error("Nothing to export yet.");
