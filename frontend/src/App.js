@@ -14,6 +14,17 @@ const formatPlanName = (plan) => {
 };
 
 
+const formatDocumentationMode = (mode) => {
+  const value = String(mode || "").toLowerCase();
+  if (value === "pasted_snippet") return "Code Snippet";
+  if (value === "single_file") return "Single File";
+  if (value === "multi_file") return "Multi-file";
+  if (value === "full_project") return "Full Project";
+  if (value === "github_repo" || value.includes("repo")) return "GitHub Repo";
+  return "Smart Docs";
+};
+
+
 const MAX_FILE_SIZE_MB = 2;
 const MAX_TOTAL_FILES = 80;
 
@@ -538,6 +549,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  const [errorMessage, setErrorMessage] = useState("");
  const [uploadedCount, setUploadedCount] = useState(0);
  const [aiEnabled, setAiEnabled] = useState(false);
+ const [documentationMode, setDocumentationMode] = useState("");
  const [selectedFileCount, setSelCount] = useState(0);
  const [darkMode, setDarkMode] = useState(false);
  const [bugLog, setBugLog] = useState("");
@@ -932,7 +944,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  if (r.status === 401) return;
  if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
  if (!r.ok || d.error) throw new Error(d.error || "Something went wrong.");
- setDoc(d.doc||"No documentation returned."); setLang(d.language||""); setAiEnabled(Boolean(d.aiEnabled));
+ setDoc(d.doc||"No documentation returned."); setLang(d.language||""); setAiEnabled(Boolean(d.aiEnabled)); setDocumentationMode(formatDocumentationMode(d.inputType || d.documentationMode));
  applyUsageFromResponse(d);
  showNotification("Documentation generated!");
  } catch(e) { showError(e.message||"Failed to connect to backend."); }
@@ -1288,7 +1300,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
 
  const handleClearAll = () => {
  setCode(""); setDoc(""); setFileName(""); setLang(""); setUploadedCount(0);
- setAiEnabled(false); setErrorMessage(""); setHealthReport("");
+ setAiEnabled(false); setDocumentationMode(""); setErrorMessage(""); setHealthReport("");
  setBugAnalysis(""); setBugLog(""); setReqText(""); setTaskPlan(""); setSelCount(0);
  showNotification("Cleared.");
  };
@@ -1440,6 +1452,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <div className="stat-card"><span>Files</span><strong>{uploadedCount}</strong></div>
  <div className="stat-card"><span>AI Engine</span><strong>{aiEnabled?"Groq AI":"Rule-based"}</strong></div>
  <div className="stat-card"><span>Language</span><strong>{detectedLanguage||"Waiting"}</strong></div>
+ <div className="stat-card"><span>Mode</span><strong>{documentationMode || "Smart Docs"}</strong></div>
  </div>
  <pre className={`output-box ${!doc?"empty-output":""}`}>
  {doc ? cleanDoc(doc) : `Your generated documentation will appear here.\n\nGenerated docs are saved to your workspace automatically.`}
