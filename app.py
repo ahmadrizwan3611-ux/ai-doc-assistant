@@ -635,40 +635,291 @@ def generate_tasks_with_ai(requirements):
         return {"success": False, "tasks": [], "error": str(e)}
 
 
+def v11_split_health_files(code):
+    code = str(code or "")
+    pattern = re.compile(r"^\s*---\s*FILE:\s*(.*?)\s*---\s*$", re.MULTILINE)
+    matches = list(pattern.finditer(code))
+
+    if not matches:
+        return [{
+            "file_name": "pasted-code.txt",
+            "content": code,
+            "is_pasted": True,
+        }]
+
+    files = []
+    for index, match in enumerate(matches):
+        file_name = match.group(1).strip() or f"file-{index + 1}.txt"
+        content_start = match.end()
+        content_end = matches[index + 1].start() if index + 1 < len(matches) else len(code)
+        content = code[content_start:content_end].strip()
+        files.append({"file_name": file_name, "content": content, "is_pasted": False})
+
+    return files
+
+
+def v11_count_lines(text):
+    if not text:
+        return 0
+    return len(str(text).splitlines())
+
+
+def v11_detect_routes_in_file(file_name, content):
+    routes = []
+    name = str(file_name or "")
+    text = str(content or "")
+
+    for route, methods in re.findall(r"@[\w\.]+\.route\(\s*['\"]([^'\"]+)['\"](?:\s*,\s*methods\s*=\s*\[([^\]]+)\])?", text):
+        clean_methods = []
+        if methods:
+            clean_methods = re.findall(r"['\"]([A-Z]+)['\"]", methods)
+        method_label = ",".join(clean_methods) if clean_methods else "GET"
+        routes.append(f"{method_label} {route} ({name})")
+
+    for method, route in re.findall(r"@(?:app|router)\.(get|post|put|patch|delete)\(\s*['\"]([^'\"]+)['\"]", text, flags=re.I):
+        routes.append(f"{method.upper()} {route} ({name})")
+
+    for method, route in re.findall(r"\b(?:app|router)\.(get|post|put|patch|delete)\(\s*['\"]([^'\"]+)['\"]", text, flags=re.I):
+        routes.append(f"{method.upper()} {route} ({name})")
+
+    for route in re.findall(r"\b(?:path|re_path)\(\s*['\"]([^'\"]+)['\"]", text):
+        routes.append(f"DJANGO {route} ({name})")
+
+    normalized = name.replace("\\", "/").lower()
+    if "/pages/api/" in normalized or normalized.startswith("pages/api/"):
+        api_path = normalized.split("pages/api/", 1)[-1]
+        api_path = "/" + re.sub(r"\.(js|jsx|ts|tsx)$", "", api_path)
+        api_path = api_path.replace("/index", "")
+        routes.append(f"NEXT_API {api_path} ({name})")
+
+    return sorted(set(routes))
+
+
+def v11_detect_health_frameworks(files):
+    frameworks = set()
+    tech_stack = set()
+
+    for file in files:
+        name = file["file_name"].lower()
+        text = file["content"].lower()
+
+        if name.endswith(".py"):
+            tech_stack.add("Python")
+        if name.endswith((".js", ".jsx")):
+            tech_stack.add("JavaScript")
+        if name.endswith((".ts", ".tsx")):
+            tech_stack.add("TypeScript")
+        if name.endswith(".php"):
+            tech_stack.add("PHP")
+        if name.endswith(".java"):
+            tech_stack.add("Java")
+        if name.endswith((".html", ".css")):
+            tech_stack.add("HTML/CSS")
+
+        if "from flask" in text or "import flask" in text or "@app.route" in text:
+            frameworks.add("Flask")
+        if "flask_cors" in text or "from flask_cors" in text:
+            frameworks.add("Flask-CORS")
+        if "from fastapi" in text or "import fastapi" in text:
+            frameworks.add("FastAPI")
+        if "django" in text or "manage.py" in name:
+            frameworks.add("Django")
+        if "import react" in text or "from 'react'" in text or 'from "react"' in text:
+            frameworks.add("React")
+        if "express()" in text or "from 'express'" in text or 'require("express")' in text or "require('express')" in text:
+            frameworks.add("Express")
+        if "next/" in text or "next.config" in name:
+            frameworks.add("Next.js")
+        if "@supabase/supabase-js" in text or "supabase" in text:
+            frameworks.add("Supabase")
+        if "stripe" in text:
+            frameworks.add("Stripe")
+        if "railway" in name or "procfile" in name:
+            frameworks.add("Railway/Procfile")
+
+    return sorted(tech_stack), sorted(frameworks)
+
+
+def v11_detect_health_scope(code, files):
+    total_files = len(files)
+    total_lines = sum(v11_count_lines(file["content"]) for file in files)
+    names = [file["file_name"].replace("\\", "/").lower() for file in files]
+    has_markers = bool(re.search(r"^\s*---\s*FILE:", str(code or ""), re.MULTILINE))
+
+    project_indicators = {
+        "package.json", "requirements.txt", "pyproject.toml", "manage.py", "app.py",
+        "procfile", "railway.json", "dockerfile", "docker-compose.yml", "vite.config.js",
+        "next.config.js", "tsconfig.json", "src/app.js", "src/app.jsx", "src/main.jsx",
+    }
+
+    has_project_file = any(name.split("/")[-1] in project_indicators or name in project_indicators for name in names)
+    has_nested_paths = sum(1 for name in names if "/" in name) >= 3
+    looks_like_github_doc = "github repository:" in str(code or "").lower() or "files documented:" in str(code or "").lower()
+
+    if looks_like_github_doc:
+        return {
+            "scope": "github_repo",
+            "review_type": "Full Project Health Report",
+            "score_label": "Project Health Score",
+            "production_relevance": "Full project/repository review",
+            "scope_note": "This review is based on the GitHub repository or repository documentation available to DevFlow.",
+        }
+
+    if total_files == 1:
+        content = files[0]["content"]
+        line_count = v11_count_lines(content)
+        if not has_markers and line_count <= 80:
+            return {
+                "scope": "pasted_snippet",
+                "review_type": "Code Quality Review",
+                "score_label": "Code Quality Score",
+                "production_relevance": "Production readiness is not applicable to a small snippet.",
+                "scope_note": "This is a focused review of pasted code, not a full project health report.",
+            }
+
+        return {
+            "scope": "single_file",
+            "review_type": "File Health Review",
+            "score_label": "File Quality Score",
+            "production_relevance": "Production readiness is limited because only one file was provided.",
+            "scope_note": "This review is limited to one uploaded file and should not be treated as a full project audit.",
+        }
+
+    if total_files >= 8 or total_lines >= 700 or has_project_file or has_nested_paths:
+        return {
+            "scope": "full_project",
+            "review_type": "Full Project Health Report",
+            "score_label": "Project Health Score",
+            "production_relevance": "Full project-level production readiness can be assessed from the uploaded project structure.",
+            "scope_note": "This review is based on the uploaded project files and visible source code.",
+        }
+
+    return {
+        "scope": "multi_file",
+        "review_type": "Project Health Snapshot",
+        "score_label": "Snapshot Health Score",
+        "production_relevance": "Production readiness is only a snapshot because the uploaded files may not represent the complete project.",
+        "scope_note": "This is a partial project snapshot based only on the uploaded files.",
+    }
+
+
+def v11_build_health_context(code):
+    files = v11_split_health_files(code)
+    tech_stack, frameworks = v11_detect_health_frameworks(files)
+    routes = []
+    important_files = []
+
+    for file in files:
+        file_routes = v11_detect_routes_in_file(file["file_name"], file["content"])
+        routes.extend(file_routes)
+        lower_name = file["file_name"].lower()
+
+        if (
+            file_routes
+            or lower_name.endswith(("app.py", "main.py", "server.js", "index.js", "app.js", "manage.py"))
+            or lower_name.split("/")[-1] in {"package.json", "requirements.txt", "procfile", "railway.json", "dockerfile"}
+        ):
+            important_files.append(file["file_name"])
+
+    if not important_files:
+        important_files = [file["file_name"] for file in files[:6]]
+
+    scope = v11_detect_health_scope(code, files)
+
+    return {
+        **scope,
+        "files": files,
+        "total_files": len(files),
+        "total_lines": sum(v11_count_lines(file["content"]) for file in files),
+        "tech_stack": sorted(set(tech_stack)),
+        "frameworks": sorted(set(frameworks)),
+        "routes": sorted(set(routes)),
+        "important_files": sorted(set(important_files)),
+    }
+
+
 def generate_health_report_with_ai(code):
+    context = v11_build_health_context(code)
+
+    routes_text = "\n".join("- " + route for route in context["routes"]) or "- No routes detected in the provided input."
+    frameworks_text = ", ".join(context["frameworks"]) or "None detected"
+    stack_text = ", ".join(context["tech_stack"]) or "Unknown"
+    important_files_text = "\n".join("- " + name for name in context["important_files"]) or "- None detected"
+
+    if context["scope"] == "pasted_snippet":
+        scoring_instruction = (
+            "This is pasted code or a small function. Do not call it a project. "
+            "Do not give project production readiness. Review only code clarity, correctness, maintainability, edge cases, and risk."
+        )
+    elif context["scope"] == "single_file":
+        scoring_instruction = (
+            "This is one uploaded file. Do not call it a full project. "
+            "Review file quality, visible framework usage, visible routes, visible error handling, and risks in this file only."
+        )
+    elif context["scope"] == "multi_file":
+        scoring_instruction = (
+            "This is a partial multi-file upload. Call it a project snapshot, not a complete audit. "
+            "Only assess what is visible in the uploaded files."
+        )
+    else:
+        scoring_instruction = (
+            "This looks like a full project or repository. You may assess architecture, production readiness, security, testing, and deployment."
+        )
+
     prompt = (
-        "You are a senior DevOps engineer, security reviewer, and software architect.\n\n"
-        "Analyze the uploaded project code and return a realistic project health report.\n\n"
-        "Return ONLY valid JSON.\n"
-        "Do not return markdown.\n"
-        "Do not wrap JSON in code fences.\n"
-        "Do not invent risks that are not supported by the code.\n"
-        "Do not mention SQL injection unless SQL/database query code is visible.\n"
-        "Do not mention XSS unless frontend user-rendered content or HTML injection risk is visible.\n\n"
-        "Return exactly these keys:\n"
-        "- \"score\": string like \"78/100\"\n"
+        "You are a senior software architect, DevOps reviewer, and code quality engineer.\n\n"
+        "Analyze the provided code using the detected input scope below. Return a realistic health review.\n\n"
+        "Strict rules:\n"
+        "- Return ONLY valid JSON.\n"
+        "- Do not return markdown.\n"
+        "- Do not wrap JSON in code fences.\n"
+        "- Do not invent risks that are not supported by the code.\n"
+        "- Do not mention SQL injection unless SQL/database query code is visible.\n"
+        "- Do not mention XSS unless frontend user-rendered content or HTML injection risk is visible.\n"
+        "- Do not recommend changing frameworks unless there is a clear reason.\n"
+        "- Do not say microservices unless multiple independently deployable services are visible.\n"
+        "- If routes are listed in Rule-based Detected Routes, include them in the routes array.\n"
+        "- If no routes are visible, say no routes detected in this input, not no routes exist in the full project.\n\n"
+        f"Detected input scope: {context['scope']}\n"
+        f"Required review title: {context['review_type']}\n"
+        f"Score label: {context['score_label']}\n"
+        f"Scope note: {context['scope_note']}\n"
+        f"Production relevance: {context['production_relevance']}\n"
+        f"Scoring instruction: {scoring_instruction}\n"
+        f"Total files visible: {context['total_files']}\n"
+        f"Total lines visible: {context['total_lines']}\n"
+        f"Rule-based tech stack: {stack_text}\n"
+        f"Rule-based frameworks: {frameworks_text}\n"
+        f"Rule-based important files:\n{important_files_text}\n"
+        f"Rule-based detected routes:\n{routes_text}\n\n"
+        "Return exactly these JSON keys:\n"
+        "- \"review_type\": string\n"
+        "- \"scope\": string\n"
+        "- \"scope_note\": string\n"
+        "- \"score_label\": string\n"
+        "- \"score\": string like \"78/100\" or \"Not scored\" if score is not appropriate\n"
+        "- \"production_readiness\": \"Not applicable\", \"Not Ready\", \"Almost Ready\", or \"Production Ready\"\n"
         "- \"score_explanation\": array of 3-6 short reasons explaining the score\n"
         "- \"total_files_detected\": integer\n"
         "- \"tech_stack\": array of detected technologies\n"
         "- \"detected_frameworks\": array of detected frameworks/libraries\n"
-        "- \"routes\": array of detected API route strings\n"
+        "- \"routes\": array of detected route strings or a single honest no-routes message\n"
         "- \"important_files\": array of important file names or modules\n"
-        "- \"architecture_notes\": array of architecture observations\n"
+        "- \"architecture_notes\": array of architecture observations that match the input scope\n"
         "- \"issues\": array of concrete issues found\n"
         "- \"security_risks\": array of concrete security risks found\n"
-        "- \"production_readiness\": \"Not Ready\", \"Almost Ready\", or \"Production Ready\"\n"
         "- \"priority_fixes\": array of highest priority fixes\n"
         "- \"suggestions\": array of practical improvements\n"
         "- \"testing_notes\": array of testing recommendations\n\n"
-        "Scoring guide:\n"
-        "- 90-100: production-ready, tests/config/security are visible\n"
-        "- 75-89: strong but missing some production hardening\n"
-        "- 55-74: functional but not production-ready\n"
-        "- 30-54: early prototype\n"
-        "- 0-29: broken or insufficient code\n\n"
-        f"Code:\n{code[:12000]}\n"
+        "Score guidance:\n"
+        "- For pasted_snippet: score code quality only, not deployment readiness.\n"
+        "- For single_file: score file quality only, not the full project.\n"
+        "- For multi_file: score the visible snapshot only and mention incomplete scope.\n"
+        "- For full_project/github_repo: score full project health.\n\n"
+        f"Code:\n{str(code or '')[:15000]}\n"
     )
-    result = call_groq(prompt, max_tokens=3000)
+
+    result = call_groq(prompt, max_tokens=3600)
     if not result["success"]:
         return {"success": False, "report": None, "error": result["error"]}
 
@@ -681,17 +932,43 @@ def generate_health_report_with_ai(code):
         if not isinstance(report, dict):
             return {"success": False, "report": None, "error": "AI returned JSON but not an object."}
 
-        report.setdefault("score", "0/100")
+        report["review_type"] = context["review_type"]
+        report["scope"] = context["scope"]
+        report["scope_note"] = context["scope_note"]
+        report["score_label"] = context["score_label"]
+        report["total_files_detected"] = context["total_files"]
+
+        if context["scope"] in {"pasted_snippet", "single_file"}:
+            report["production_readiness"] = "Not applicable"
+
+        if context["tech_stack"] and not report.get("tech_stack"):
+            report["tech_stack"] = context["tech_stack"]
+
+        if context["frameworks"] and not report.get("detected_frameworks"):
+            report["detected_frameworks"] = context["frameworks"]
+
+        ai_routes = report.get("routes") if isinstance(report.get("routes"), list) else []
+        route_text = " ".join(str(x).lower() for x in ai_routes)
+        if context["routes"] and (not ai_routes or "no route" in route_text):
+            report["routes"] = context["routes"]
+        elif not context["routes"] and not ai_routes:
+            if context["scope"] == "pasted_snippet":
+                report["routes"] = ["No routes detected in this pasted code."]
+            elif context["scope"] == "single_file":
+                report["routes"] = ["No routes detected in this file."]
+            elif context["scope"] == "multi_file":
+                report["routes"] = ["No routes detected in the uploaded file snapshot."]
+            else:
+                report["routes"] = ["No routes detected in the visible project files."]
+
+        if context["important_files"] and not report.get("important_files"):
+            report["important_files"] = context["important_files"]
+
+        report.setdefault("score", "Not scored")
         report.setdefault("score_explanation", [])
-        report.setdefault("total_files_detected", 0)
-        report.setdefault("tech_stack", [])
-        report.setdefault("detected_frameworks", [])
-        report.setdefault("routes", [])
-        report.setdefault("important_files", [])
         report.setdefault("architecture_notes", [])
         report.setdefault("issues", [])
         report.setdefault("security_risks", [])
-        report.setdefault("production_readiness", "Not Ready")
         report.setdefault("priority_fixes", [])
         report.setdefault("suggestions", [])
         report.setdefault("testing_notes", [])

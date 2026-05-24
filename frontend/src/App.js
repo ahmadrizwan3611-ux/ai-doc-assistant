@@ -90,14 +90,29 @@ const formatGeneratedTasks = (tasks) => {
 };
 
 const formatHealthReport = (rp) => {
-  if (!rp) return "No health report returned.";
+  if (!rp) return "No health review returned.";
+
+  const reviewTitle = cleanDevFlowOutput(rp.review_type || "Smart Health Review");
+  const scoreLabel = cleanDevFlowOutput(rp.score_label || "Health Score");
+  const readiness = cleanDevFlowOutput(rp.production_readiness || "Not applicable");
+  const scopeLabel = cleanDevFlowOutput(rp.scope || "unknown");
 
   const sections = [
-    "Project Health Report",
+    reviewTitle,
     "",
-    `Score: ${cleanDevFlowOutput(rp.score || "0/100")}`,
-    `Production Readiness: ${cleanDevFlowOutput(rp.production_readiness || "Not Ready")}`,
-    `Total Files: ${rp.total_files_detected || 0}`,
+    `Scope: ${scopeLabel}`,
+    rp.scope_note ? `Scope Note: ${cleanDevFlowOutput(rp.scope_note)}` : "",
+    `${scoreLabel}: ${cleanDevFlowOutput(rp.score || "Not scored")}`,
+  ].filter(Boolean);
+
+  if (readiness && readiness.toLowerCase() !== "not applicable") {
+    sections.push(`Production Readiness: ${readiness}`);
+  } else {
+    sections.push("Production Readiness: Not applicable for this input scope");
+  }
+
+  sections.push(
+    `Total Files Reviewed: ${rp.total_files_detected || 0}`,
     "",
     "Why This Score",
     listToText(rp.score_explanation),
@@ -109,7 +124,7 @@ const formatHealthReport = (rp) => {
     listToText(rp.detected_frameworks),
     "",
     "Detected Routes",
-    listToText(rp.routes, "- No routes detected"),
+    listToText(rp.routes, "- No routes detected in this input"),
     "",
     "Important Files",
     listToText(rp.important_files),
@@ -130,11 +145,12 @@ const formatHealthReport = (rp) => {
     listToText(rp.suggestions),
     "",
     "Testing Notes",
-    listToText(rp.testing_notes),
-  ];
+    listToText(rp.testing_notes)
+  );
 
   return sections.join("\n");
 };
+
 
 
 const MAX_FILE_SIZE_MB = 2;
@@ -235,7 +251,7 @@ function LandingPage({ onStart }) {
  text: "Paste any error log and get root cause, fix steps, and prevention guidance."
  },
  {
- title: "Project Health",
+ title: "Smart Health",
  text: "Scan codebases for risks, missing files, security notes, and production readiness."
  },
  {
@@ -249,7 +265,7 @@ function LandingPage({ onStart }) {
  name: "Free",
  price: "$0",
  note: "For trying DevFlow",
- items: ["5 AI docs/month", "1 workspace", "Bug Analyzer", "Project Health", "Markdown/PDF export"]
+ items: ["5 AI docs/month", "1 workspace", "Bug Analyzer", "Smart Health", "Markdown/PDF export"]
  },
  {
  name: "Pro",
@@ -849,7 +865,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  return [
  ["Docs + GitHub", f.documentation_generations],
  ["Bug Analyzer", f.bug_analyzer],
- ["Project Health", f.project_health],
+ ["Smart Health", f.project_health],
  ["Task Generator", f.task_generator],
  ["Workspaces", usageInfo?.workspace],
  ].filter(([, value]) => Boolean(value));
@@ -939,14 +955,14 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  };
 
  const saveHealthReport = async () => {
- if (!healthReport) { toast.error("Generate project health report first."); return; }
- const title = fileName ? `Health Report: ${fileName.split(",")[0]}` : "Project Health Report";
+ if (!healthReport) { toast.error("Generate a smart health review first."); return; }
+ const title = fileName ? `Health Report: ${fileName.split(",")[0]}` : "Smart Health Report";
  await saveWorkspaceDocument({
  title,
- language: "Project Health",
+ language: "Smart Health",
  content: healthReport,
  file_count: uploadedCount || 1,
- successMessage: "Project health report saved to workspace!",
+ successMessage: "Smart health review saved to workspace!",
  });
  };
 
@@ -1474,7 +1490,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <div className="workspace-nav">
  {["docs","bugs","health","tasks","github","history","team","billing"].map(m => (
  <button key={m} className={activeModule===m?"nav-active":""} onClick={() => setActiveModule(m)}>
- {m === "docs" ? "Documentation" : m === "bugs" ? "Bug Analyzer" : m === "health" ? "Project Health" : m === "tasks" ? "Task Generator" : m === "history" ? " Saved Docs" : m === "github" ? " GitHub" : m === "billing" ? " Billing" : " Team"}
+ {m === "docs" ? "Documentation" : m === "bugs" ? "Bug Analyzer" : m === "health" ? "Smart Health" : m === "tasks" ? "Task Generator" : m === "history" ? " Saved Docs" : m === "github" ? " GitHub" : m === "billing" ? " Billing" : " Team"}
  </button>
  ))}
  </div>
@@ -1550,7 +1566,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  {loading && <div className="loading-overlay"><div className="loading-card"><InfinitySpin width="220" color="#2563eb"/><h2>Analyzing Project...</h2><p>Generating documentation with AI...</p></div></div>}
  <div className="button-row">
  <button onClick={handleGenerateDoc} disabled={loading||!code.trim()}>{loading?"Generating...":"Generate"}</button>
- <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>Health Check</button>
+ <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>Health Review</button>
  <button className="secondary-btn" onClick={saveDoc} disabled={!doc||saving}>{saving?"Saving...":" Save"}</button>
  <button className="secondary-btn" onClick={()=>{if(!doc){toast.error("Generate first.");return;}navigator.clipboard.writeText(cleanDoc(doc));toast.success("Copied!");}}>Copy</button>
  <button className="secondary-btn" onClick={()=>{if(!doc){toast.error("Generate first.");return;}downloadTextFile(doc,"documentation.md","text/markdown");toast.success("Markdown exported!");}}>Markdown</button>
@@ -1594,17 +1610,17 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  {activeModule === "health" && (
  <div className="module-single-view">
  <section className="card docs-card">
- <h2>Project Health Report</h2>
- <p className="helper-text">Upload project code in the Documentation tab first, then generate a health report here.</p>
+ <h2>Smart Health Review</h2>
+ <p className="helper-text">Upload or paste code in the Documentation tab first. DevFlow will choose Code Quality, File Health, Project Snapshot, or Full Smart Health automatically.</p>
  <div className="button-row">
- <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>{loading?"Analyzing...":"Generate Health Report"}</button>
+ <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>{loading?"Analyzing...":"Generate Health Review"}</button>
  <button className="secondary-btn" onClick={saveHealthReport} disabled={!healthReport||saving}>{saving?"Saving...":" Save Health"}</button>
  <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}navigator.clipboard.writeText(cleanDevFlowOutput(healthReport));toast.success("Copied!");}} disabled={!healthReport}>Copy</button>
  <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}downloadTextFile(cleanDevFlowOutput(healthReport),"project-health-report.md","text/markdown");toast.success("Markdown exported!");}} disabled={!healthReport}>Markdown</button>
- <button className="secondary-btn" onClick={()=>exportContentAsPDF("Project Health Report", healthReport, "project-health-report.pdf")} disabled={!healthReport}>PDF</button>
+ <button className="secondary-btn" onClick={()=>exportContentAsPDF("Smart Health Report", healthReport, "project-health-report.pdf")} disabled={!healthReport}>PDF</button>
  <button className="danger-btn" onClick={handleClearAll}>Clear</button>
  </div>
- <pre className={`output-box ${!healthReport?"empty-output":""}`}>{healthReport ? cleanDevFlowOutput(healthReport) : "Project health report will appear here."}</pre>
+ <pre className={`output-box ${!healthReport?"empty-output":""}`}>{healthReport ? cleanDevFlowOutput(healthReport) : "Smart health review will appear here."}</pre>
  </section>
  </div>
  )}
