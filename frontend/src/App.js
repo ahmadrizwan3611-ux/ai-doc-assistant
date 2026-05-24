@@ -40,6 +40,351 @@ const cleanDevFlowOutput = (text) => {
     .trim();
 };
 
+
+const DEVFLOW_SECTION_HEADINGS = new Set([
+  "executive summary",
+  "overview",
+  "file purpose",
+  "project purpose",
+  "what this project does",
+  "technology stack",
+  "technology detected",
+  "architecture overview",
+  "important files",
+  "important functions",
+  "important functions and classes",
+  "function and method explanations",
+  "main workflows",
+  "api routes",
+  "routes if any",
+  "important logic",
+  "dependencies",
+  "security observations",
+  "security risks",
+  "risks",
+  "suggested improvements",
+  "improvement roadmap",
+  "developer handover notes",
+  "how to run",
+  "how to run / setup",
+  "setup notes",
+  "large file summary",
+  "detected functions",
+  "why this score",
+  "detected frameworks",
+  "detected routes",
+  "architecture notes",
+  "issues",
+  "priority fixes",
+  "testing notes",
+  "what the error means",
+  "why it happened",
+  "likely cause",
+  "step-by-step fix",
+  "fixed version",
+  "prevention",
+  "summary",
+  "implementation notes",
+  "subtasks",
+  "acceptance criteria",
+  "definition of done",
+  "qa notes",
+]);
+
+const normalizeSectionKey = (line) =>
+  String(line || "")
+    .replace(/^#+\s*/, "")
+    .replace(/[:：]\s*$/, "")
+    .trim()
+    .toLowerCase();
+
+const isDevFlowSectionHeading = (line) => {
+  const value = String(line || "").trim();
+  if (!value) return false;
+
+  const normalized = normalizeSectionKey(value);
+  if (DEVFLOW_SECTION_HEADINGS.has(normalized)) return true;
+  if (/^task\s+\d+\s*:/i.test(value)) return true;
+  if (/^(phase|step)\s+\d+/i.test(value) && value.length < 90) return true;
+
+  return (
+    value.length <= 64 &&
+    !/^[-*•]\s+/.test(value) &&
+    !/^\d+\./.test(value) &&
+    !/[.;]$/.test(value) &&
+    !/https?:\/\//i.test(value) &&
+    !/^\w+\s*:\s+.{18,}/.test(value) &&
+    /^[A-Z][A-Za-z0-9 /&()+-]+$/.test(value)
+  );
+};
+
+const isMetaLine = (line) => {
+  const value = String(line || "").trim();
+  return /^[A-Za-z][A-Za-z0-9 /&()+-]{1,36}:\s+.+$/.test(value) && value.length <= 150;
+};
+
+const renderInlineText = (text) => {
+  const parts = String(text || "").split(/(\b[A-Za-z0-9_./-]+\.(?:py|js|jsx|ts|tsx|css|html|json|md|txt|sql|env)\b|\/[A-Za-z0-9_./-]+|POST\s+\/[A-Za-z0-9_./-]+|GET\s+\/[A-Za-z0-9_./-]+)/g);
+  return parts.map((part, index) => {
+    if (/(\.(py|js|jsx|ts|tsx|css|html|json|md|txt|sql|env)\b|^(POST|GET)\s+\/|^\/[A-Za-z0-9_./-]+)/i.test(part)) {
+      return <code key={index}>{part}</code>;
+    }
+    return <React.Fragment key={index}>{part}</React.Fragment>;
+  });
+};
+
+function DevFlowDocumentView({ content, emptyText }) {
+  const prepared = cleanDevFlowOutput(content);
+  const lines = prepared.split("\n").map((line) => line.trim()).filter(Boolean);
+
+  if (!prepared) {
+    return (
+      <div className="output-box document-view empty-output">
+        <div>{emptyText}</div>
+      </div>
+    );
+  }
+
+  const blocks = [];
+  let listItems = [];
+
+  const flushList = () => {
+    if (listItems.length) {
+      blocks.push(
+        <ul className="doc-list" key={`list-${blocks.length}`}>
+          {listItems.map((item, index) => (
+            <li key={index}>{renderInlineText(item)}</li>
+          ))}
+        </ul>
+      );
+      listItems = [];
+    }
+  };
+
+  lines.forEach((line, index) => {
+    const bullet = line.match(/^[-*•]\s+(.+)$/);
+    if (bullet) {
+      listItems.push(bullet[1]);
+      return;
+    }
+
+    flushList();
+
+    if (isDevFlowSectionHeading(line)) {
+      blocks.push(
+        <h3 className="doc-section-title" key={`heading-${index}`}>
+          {renderInlineText(line.replace(/^#+\s*/, ""))}
+        </h3>
+      );
+      return;
+    }
+
+    if (isMetaLine(line)) {
+      const splitIndex = line.indexOf(":");
+      blocks.push(
+        <div className="doc-meta-row" key={`meta-${index}`}>
+          <span className="doc-meta-key">{line.slice(0, splitIndex)}</span>
+          <span className="doc-meta-value">{renderInlineText(line.slice(splitIndex + 1).trim())}</span>
+        </div>
+      );
+      return;
+    }
+
+    blocks.push(
+      <p className="doc-paragraph" key={`paragraph-${index}`}>
+        {renderInlineText(line)}
+      </p>
+    );
+  });
+
+  flushList();
+
+  return <div className="output-box document-view">{blocks}</div>;
+}
+
+const FILE_PRIORITY_RULES = [
+  { test: (p) => /(^|\/)(package\.json|requirements\.txt|procfile|railway\.json|dockerfile|vite\.config\.[jt]s|next\.config\.[jt]s)$/i.test(p), score: 100 },
+  { test: (p) => /(^|\/)(app\.py|main\.py|server\.js|index\.js|manage\.py)$/i.test(p), score: 95 },
+  { test: (p) => /(^|\/)(App\.(js|jsx|ts|tsx)|App\.css|index\.html)$/i.test(p), score: 90 },
+  { test: (p) => /(auth|billing|stripe|supabase|github|workspace|document|route|api)/i.test(p), score: 82 },
+  { test: (p) => /\/src\/|\/pages\/|\/api\/|\/routes\/|\/components\//i.test(p), score: 70 },
+  { test: (p) => /\.(py|js|jsx|ts|tsx)$/i.test(p), score: 55 },
+  { test: (p) => /\.(css|html|json|md)$/i.test(p), score: 40 },
+];
+
+const scoreProjectFile = (fileName) => {
+  const path = String(fileName || "").replace(/\\/g, "/");
+  const matched = FILE_PRIORITY_RULES.find((rule) => rule.test(path));
+  return matched ? matched.score : 10;
+};
+
+const getExtensionLanguage = (fileName) => {
+  const name = String(fileName || "").toLowerCase();
+  if (name.endsWith(".py")) return "Python";
+  if (name.endsWith(".js") || name.endsWith(".jsx")) return "JavaScript / React";
+  if (name.endsWith(".ts") || name.endsWith(".tsx")) return "TypeScript / React";
+  if (name.endsWith(".css")) return "CSS";
+  if (name.endsWith(".html")) return "HTML";
+  if (name.endsWith(".json")) return "JSON";
+  if (name.endsWith(".md")) return "Markdown";
+  if (name.endsWith(".sql")) return "SQL";
+  return "Text";
+};
+
+const extractImportantCodeLines = (content) => {
+  const lines = String(content || "").split("\n");
+  const important = lines.filter((raw) => {
+    const line = raw.trim();
+    return (
+      line.startsWith("import ") ||
+      line.startsWith("from ") ||
+      line.startsWith("export ") ||
+      line.startsWith("@app.route") ||
+      line.startsWith("def ") ||
+      line.startsWith("class ") ||
+      line.startsWith("function ") ||
+      line.startsWith("const ") ||
+      line.startsWith("let ") ||
+      line.startsWith("var ") ||
+      line.includes("fetch(") ||
+      line.includes("app.route") ||
+      line.includes("createClient") ||
+      line.includes("stripe.") ||
+      line.includes("supabase")
+    );
+  });
+
+  return important.slice(0, 90).join("\n");
+};
+
+const compactSourceFile = (file, index) => {
+  const name = file.name || `file-${index + 1}`;
+  const content = String(file.content || "");
+  const lines = content.split("\n");
+  const priority = scoreProjectFile(name);
+  const language = getExtensionLanguage(name);
+  const importantLines = extractImportantCodeLines(content);
+  const fullLimit = priority >= 82 ? 26000 : priority >= 55 ? 12000 : 5500;
+
+  if (content.length <= fullLimit) {
+    return `--- FILE: ${name} ---\nLANGUAGE: ${language}\nTOTAL_LINES: ${lines.length}\nPRIORITY: ${priority}\n${content}`;
+  }
+
+  const head = lines.slice(0, priority >= 82 ? 220 : 90).join("\n");
+  const tail = lines.slice(priority >= 82 ? -80 : -30).join("\n");
+
+  return [
+    `--- FILE: ${name} ---`,
+    `LANGUAGE: ${language}`,
+    `TOTAL_LINES: ${lines.length}`,
+    `PRIORITY: ${priority}`,
+    "COMPACTED_FOR_SMART_PROJECT_MODE: yes",
+    "",
+    "IMPORTANT_SIGNATURES_AND_ROUTES:",
+    importantLines || "- No signatures, routes, or imports detected in compact summary.",
+    "",
+    "FILE_START_EXCERPT:",
+    head,
+    "",
+    "FILE_END_EXCERPT:",
+    tail,
+  ].join("\n");
+};
+
+const buildSmartUploadPackage = (files, selectedCount) => {
+  const normalizedFiles = files
+    .map((file, index) => ({ ...file, index, score: scoreProjectFile(file.name) }))
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+
+  const hasProjectStructure =
+    normalizedFiles.length >= 8 ||
+    normalizedFiles.some((file) => String(file.name || "").includes("/")) ||
+    normalizedFiles.some((file) => /(^|\/)(package\.json|requirements\.txt|procfile|railway\.json|app\.py|App\.js)$/i.test(file.name || ""));
+
+  const totalLines = normalizedFiles.reduce((sum, file) => sum + String(file.content || "").split("\n").length, 0);
+  const manifest = normalizedFiles
+    .map((file) => `- ${file.name} (${getExtensionLanguage(file.name)}, ${String(file.content || "").split("\n").length} lines, priority ${file.score})`)
+    .join("\n");
+
+  const header = [
+    "DEVFLOW SMART UPLOAD CONTEXT",
+    `Input Type: ${hasProjectStructure ? "Full Project" : normalizedFiles.length === 1 ? "Single File" : "Multi-file Upload"}`,
+    `Files selected by user: ${selectedCount || normalizedFiles.length}`,
+    `Files included after filtering: ${normalizedFiles.length}`,
+    `Total visible lines before compaction: ${totalLines}`,
+    "Instruction: Generate one organized professional report for the whole input. Do not explain every file separately unless it is important.",
+    "Instruction: If this is a full project, explain purpose, architecture, tech stack, main workflows, important files, routes, risks, and improvements.",
+    "",
+    "PROJECT FILE MANIFEST",
+    manifest,
+    "",
+    "IMPORTANT SOURCE CONTEXT",
+  ].join("\n");
+
+  const chunks = [header];
+  let usedChars = header.length;
+  let omitted = 0;
+
+  normalizedFiles.forEach((file, index) => {
+    const compacted = compactSourceFile(file, index);
+    if (usedChars + compacted.length + 4 > MAX_BACKEND_CODE_CHARS) {
+      omitted += 1;
+      return;
+    }
+    chunks.push(compacted);
+    usedChars += compacted.length + 4;
+  });
+
+  if (omitted > 0) {
+    chunks.push(
+      [
+        "",
+        "SMART_COMPACTION_NOTE",
+        `${omitted} lower-priority files were omitted from the request to keep the AI request safe.`,
+        "The file manifest still lists the project structure, so the documentation should focus on architecture and important files.",
+      ].join("\n")
+    );
+  }
+
+  return {
+    code: chunks.join("\n\n"),
+    mode: hasProjectStructure ? "full_project" : normalizedFiles.length === 1 ? "single_file" : "multi_file",
+    omitted,
+  };
+};
+
+const prepareCodeForRequest = (rawCode, rawFileName = "") => {
+  const value = String(rawCode || "");
+  if (value.length <= MAX_BACKEND_CODE_CHARS) return value;
+
+  const fileBlocks = value
+    .split(/\n(?=--- FILE:\s)/g)
+    .map((block) => {
+      const match = block.match(/^--- FILE:\s*(.*?)\s*---\n?([\s\S]*)$/);
+      if (!match) return null;
+      return { name: match[1].trim(), content: match[2] || "" };
+    })
+    .filter(Boolean);
+
+  if (fileBlocks.length) {
+    return buildSmartUploadPackage(fileBlocks, fileBlocks.length).code;
+  }
+
+  return [
+    "DEVFLOW SMART UPLOAD CONTEXT",
+    "Input Type: Large Pasted Code",
+    `Original length: ${value.length} characters`,
+    rawFileName ? `File name: ${rawFileName}` : "",
+    "Instruction: The pasted code was too large, so this request contains the most important visible part. Explain purpose, important functions, risks, and improvements.",
+    "",
+    value.slice(0, MAX_BACKEND_CODE_CHARS - 1200),
+    "",
+    "SMART_COMPACTION_NOTE",
+    "The remaining pasted content was trimmed client-side to prevent a server size error.",
+  ].filter(Boolean).join("\n");
+};
+
+
 const listToText = (items, fallback = "- None") => {
   if (!Array.isArray(items) || items.length === 0) return fallback;
   return items.map((item) => "- " + cleanDevFlowOutput(item)).join("\n");
@@ -153,8 +498,9 @@ const formatHealthReport = (rp) => {
 
 
 
-const MAX_FILE_SIZE_MB = 2;
-const MAX_TOTAL_FILES = 80;
+const MAX_FILE_SIZE_MB = 8;
+const MAX_TOTAL_FILES = 120;
+const MAX_BACKEND_CODE_CHARS = 240000;
 
 // Auth helpers 
 const getToken = () => localStorage.getItem("devflow_token");
@@ -993,13 +1339,33 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  };
 
  const shouldIgnoreFile = filePath => {
- const p = filePath.toLowerCase();
- const ignoredParts = ["node_modules","venv",".venv","__pycache__",".git","dist","build",".next","coverage","images","assets","media",".cache"];
- const ignoredFiles = ["package-lock.json","yarn.lock","pnpm-lock.yaml",".env",".env.local",".gitignore",".ds_store"];
- const ignoredExts = [".png",".jpg",".jpeg",".gif",".svg",".ico",".pdf",".zip",".rar",".exe",".dll",".mp4",".mp3",".woff",".woff2",".ttf"];
+ const p = String(filePath || "").toLowerCase().replace(/\\/g, "/");
+ const base = p.split("/").pop() || "";
+ const ignoredParts = [
+ "node_modules","venv",".venv","__pycache__",".git","dist","build",".next","coverage",
+ "images","assets","media",".cache",".pytest_cache",".mypy_cache"
+ ];
+ const ignoredFiles = [
+ "package-lock.json","yarn.lock","pnpm-lock.yaml",".env",".env.local",".env.production",
+ ".gitignore",".ds_store","thumbs.db"
+ ];
+ const ignoredExts = [
+ ".png",".jpg",".jpeg",".gif",".svg",".ico",".pdf",".zip",".rar",".7z",".exe",".dll",
+ ".mp4",".mp3",".wav",".woff",".woff2",".ttf",".otf",".map",".log",".pyc"
+ ];
+ const generatedOrBackup =
+ base.includes("_backup") ||
+ base.includes(".backup") ||
+ base.includes("hotfix") ||
+ base.startsWith("fix_") ||
+ base.startsWith("readme_fix") ||
+ base.endsWith(".bak") ||
+ base.endsWith(".old");
+
  if (ignoredParts.some(x => p.includes(x))) return true;
- if (ignoredFiles.some(x => p.endsWith(x))) return true;
+ if (ignoredFiles.some(x => base === x || p.endsWith("/" + x))) return true;
  if (ignoredExts.some(x => p.endsWith(x))) return true;
+ if (generatedOrBackup) return true;
  return false;
  };
 
@@ -1018,16 +1384,35 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  return !shouldIgnoreFile(fp) && f.size <= MAX_FILE_SIZE_MB * 1024 * 1024;
  });
  setSelCount(supportedFiles.length);
- if (supportedFiles.length === 0) { showError("No supported code files found."); return; }
+
+ if (supportedFiles.length === 0) {
+ showError("No supported code files found. DevFlow skips backups, images, PDFs, virtual environments, node_modules, and generated files.");
+ return;
+ }
+
  const filesToRead = supportedFiles.slice(0, MAX_TOTAL_FILES);
+
  try {
  const results = await Promise.all(filesToRead.map(readFileAsText));
- setCode(results.map(f => `--- FILE: ${f.name} ---\n${f.content}`).join("\n\n"));
- setDoc(""); setLang(""); setUploadedCount(results.length);
+ const smartPackage = buildSmartUploadPackage(results, supportedFiles.length);
+
+ setCode(smartPackage.code);
+ setDoc("");
+ setLang("");
+ setHealthReport("");
+ setUploadedCount(results.length);
+ setDocumentationMode(formatDocumentationMode(smartPackage.mode));
  setFileName(results.map(f => f.name).join(", "));
- showNotification(supportedFiles.length > MAX_TOTAL_FILES ? `Loaded first ${MAX_TOTAL_FILES} files only.` : "Files loaded successfully.");
- } catch (e) { showError(e.message || "Failed to read files."); }
- finally { event.target.value = ""; }
+
+ const skippedByLimit = supportedFiles.length > MAX_TOTAL_FILES ? ` Loaded first ${MAX_TOTAL_FILES} supported files.` : "";
+ const compactedNote = smartPackage.omitted > 0 ? ` ${smartPackage.omitted} low-priority files were summarized or skipped safely.` : "";
+ showNotification(`${formatDocumentationMode(smartPackage.mode)} loaded in smart mode.${skippedByLimit}${compactedNote}`);
+ } catch (e) {
+ showError(e.message || "Failed to read files.");
+ }
+ finally {
+ if (event.target) event.target.value = "";
+ }
  };
 
  const handleDrop = async e => {
@@ -1067,14 +1452,31 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  if (!code.trim()) { showError("Please paste code or upload a project first."); return; }
  setLoading(true); setDoc(""); setLang(""); setErrorMessage("");
  try {
- const r = await authFetch(`/generate-doc`, { method:"POST", body:JSON.stringify({code,fileName}) }, onAuthExpired);
+ const requestCode = prepareCodeForRequest(code, fileName);
+ const r = await authFetch(`/generate-doc`, {
+ method:"POST",
+ body:JSON.stringify({
+ code: requestCode,
+ fileName,
+ smartMode: requestCode.length !== code.length || documentationMode === "Full Project"
+ })
+ }, onAuthExpired);
  const d = await safeJson(r);
  if (r.status === 401) return;
  if (r.status === 403 && d.limitReached) { handleLimitReached(d); return; }
- if (!r.ok || d.error) throw new Error(d.error || "Something went wrong.");
- setDoc(d.doc||"No documentation returned."); setLang(d.language||""); setAiEnabled(Boolean(d.aiEnabled)); setDocumentationMode(formatDocumentationMode(d.inputType || d.documentationMode));
+ if (!r.ok || d.error) {
+ const rawError = String(d.error || "");
+ if (/too large|request entity|payload/i.test(rawError)) {
+ throw new Error("This project is still too large for the server. Upload only the main project folder without backups, old fix scripts, screenshots, venv, node_modules, or generated files.");
+ }
+ throw new Error(rawError || "Something went wrong.");
+ }
+ setDoc(d.doc||"No documentation returned.");
+ setLang(d.language||"");
+ setAiEnabled(Boolean(d.aiEnabled));
+ setDocumentationMode(formatDocumentationMode(d.inputType || d.documentationMode || documentationMode));
  applyUsageFromResponse(d);
- showNotification("Documentation generated!");
+ showNotification("Professional documentation generated!");
  } catch(e) { showError(e.message||"Failed to connect to backend."); }
  finally { setLoading(false); }
  };
@@ -1347,7 +1749,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
         return;
       }
 
-      if (/^(Project \/ File Purpose|Function and Method Explanations|Architecture Overview|API Routes|Important Logic|Dependencies|Security Observations|Suggested Improvements|How to Run \/ Setup|Large File Summary|Detected Functions)$/i.test(trimmed)) {
+      if (isDevFlowSectionHeading(trimmed)) {
         writeSectionTitle(trimmed);
         return;
       }
@@ -1582,9 +1984,10 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <div className="stat-card"><span>Language</span><strong>{detectedLanguage||"Waiting"}</strong></div>
  <div className="stat-card"><span>Mode</span><strong>{documentationMode || "Smart Docs"}</strong></div>
  </div>
- <pre className={`output-box ${!doc?"empty-output":""}`}>
- {doc ? cleanDevFlowOutput(cleanDoc(doc)) : `Your generated documentation will appear here.\n\nGenerated docs are saved to your workspace automatically.`}
- </pre>
+ <DevFlowDocumentView
+ content={doc ? cleanDoc(doc) : ""}
+ emptyText={`Your generated documentation will appear here.\n\nGenerated docs are saved to your workspace automatically.`}
+/>
  </section>
  </>)}
 
@@ -1602,7 +2005,10 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  </section>
  <section className="card docs-card">
  <h2>Bug Analysis Result</h2>
- <pre className={`output-box ${!bugAnalysis?"empty-output":""}`}>{bugAnalysis ? cleanDevFlowOutput(bugAnalysis) : "Bug analysis will appear here."}</pre>
+ <DevFlowDocumentView
+ content={bugAnalysis || ""}
+ emptyText="Bug analysis will appear here."
+/>
  </section>
  </>)}
 
@@ -1620,7 +2026,10 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <button className="secondary-btn" onClick={()=>exportContentAsPDF("Smart Health Report", healthReport, "project-health-report.pdf")} disabled={!healthReport}>PDF</button>
  <button className="danger-btn" onClick={handleClearAll}>Clear</button>
  </div>
- <pre className={`output-box ${!healthReport?"empty-output":""}`}>{healthReport ? cleanDevFlowOutput(healthReport) : "Smart health review will appear here."}</pre>
+ <DevFlowDocumentView
+ content={healthReport || ""}
+ emptyText="Smart health review will appear here."
+/>
  </section>
  </div>
  )}
@@ -1639,7 +2048,10 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  </section>
  <section className="card docs-card">
  <h2>Generated Tasks</h2>
- <pre className={`output-box ${!taskPlan?"empty-output":""}`}>{taskPlan ? cleanDevFlowOutput(taskPlan) : "Generated team tasks will appear here."}</pre>
+ <DevFlowDocumentView
+ content={taskPlan || ""}
+ emptyText="Generated team tasks will appear here."
+/>
  </section>
  </>)}
 
@@ -1694,9 +2106,10 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <button className="danger-btn" onClick={() => deleteDoc(selectedDoc.id)}>Delete</button>
  </div>
 
- <pre className={`output-box ${!selectedDoc.content?"empty-output":""}`}>
- {selectedDoc.content ? cleanDevFlowOutput(cleanDoc(selectedDoc.content)) : "No document content found."}
- </pre>
+ <DevFlowDocumentView
+ content={selectedDoc.content ? cleanDoc(selectedDoc.content) : ""}
+ emptyText="No document content found."
+/>
  </>
  )}
  </section>
@@ -1725,7 +2138,10 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  </section>
  <section className="card docs-card">
  <h2>Repository Documentation{repoName && <span style={{fontSize:"14px",color:"#64748b",marginLeft:"10px"}}> {repoName}</span>}</h2>
- <pre className={`output-box ${!repoDoc?"empty-output":""}`}>{repoDoc||"Paste a GitHub URL and click Generate Docs.\n\nSupports:\n- Public repositories\n- Private repos (with token)\n- Any language"}</pre>
+ <DevFlowDocumentView
+ content={repoDoc || ""}
+ emptyText={`Paste a GitHub URL and click Generate Docs.\n\nSupports:\n- Public repositories\n- Private repos with token\n- Any language`}
+/>
  </section>
  </>)}
 
