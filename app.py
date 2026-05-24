@@ -2059,6 +2059,385 @@ def health_check():
     })
 
 
+
+# ── Smart documentation engine ────────────────────────────────────────────────
+def clean_devflow_text(value):
+    """Normalize AI/rule-based output for a cleaner professional UI."""
+    text = str(value or "")
+    replacements = {
+        "**": "",
+        "â€”": "-",
+        "â€“": "-",
+        "â€˜": "'",
+        "â€™": "'",
+        "â€œ": '"',
+        "â€": '"',
+        "â€¦": "...",
+        "Â": "",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    text = re.sub(r"\n{4,}", "\n\n\n", text)
+    return text.strip()
+
+
+def smart_files_from_code(code, file_name=""):
+    """Return normalized file objects from pasted code, one file, or multi-file/project upload."""
+    code = str(code or "")
+    files = split_multiple_files(code)
+
+    if files:
+        return [
+            {
+                "file_name": f.get("file_name") or f"file-{index + 1}.txt",
+                "content": f.get("content") or "",
+            }
+            for index, f in enumerate(files)
+        ]
+
+    return [{
+        "file_name": file_name or "pasted-code.txt",
+        "content": code,
+    }]
+
+
+def smart_documentation_scope(code, files):
+    """Classify input so docs are useful for snippets, files, and full projects."""
+    code_text = str(code or "")
+    file_count = len(files)
+    total_lines = sum(v11_count_lines(file.get("content", "")) for file in files)
+    names = [str(file.get("file_name", "")).replace("\\", "/").lower() for file in files]
+    has_file_markers = bool(re.search(r"^\s*---\s*FILE:", code_text, re.MULTILINE))
+
+    project_files = {
+        "package.json", "requirements.txt", "pyproject.toml", "pipfile", "manage.py",
+        "app.py", "main.py", "server.py", "index.js", "app.js", "vite.config.js",
+        "next.config.js", "tailwind.config.js", "tsconfig.json", "procfile",
+        "railway.json", "dockerfile", "docker-compose.yml", "docker-compose.yaml",
+        "readme.md", "readme",
+    }
+
+    has_project_file = any(name.split("/")[-1] in project_files for name in names)
+    has_nested_paths = sum(1 for name in names if "/" in name) >= 3
+
+    if file_count == 1 and not has_file_markers and total_lines <= 120:
+        return "pasted_code"
+
+    if file_count == 1:
+        return "single_file"
+
+    if file_count >= 8 or total_lines >= 700 or has_project_file or has_nested_paths:
+        return "full_project"
+
+    return "multi_file"
+
+
+def smart_detect_dependencies(content):
+    """Detect imports/dependencies from common source files."""
+    dependencies = []
+    for raw_line in str(content or "").splitlines():
+        line = raw_line.strip()
+        if line.startswith("import ") or line.startswith("from "):
+            dependencies.append(line)
+        elif line.startswith("const ") and "require(" in line:
+            dependencies.append(line)
+        elif line.startswith("import ") and " from " in line:
+            dependencies.append(line)
+    return dependencies[:20]
+
+
+def smart_detect_symbols(file_name, content):
+    """Extract important functions/classes/components without failing on syntax issues."""
+    file_name = str(file_name or "")
+    content = str(content or "")
+    symbols = []
+
+    if file_name.lower().endswith(".py") or detect_language(content, file_name) == "Python":
+        try:
+            tree = ast.parse(content)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    symbols.append(f"function {node.name}")
+                elif isinstance(node, ast.AsyncFunctionDef):
+                    symbols.append(f"async function {node.name}")
+                elif isinstance(node, ast.ClassDef):
+                    symbols.append(f"class {node.name}")
+        except Exception:
+            pass
+
+    if not symbols:
+        patterns = [
+            r"\bfunction\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+            r"\bconst\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:async\s*)?\(",
+            r"\bconst\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:async\s*)?function",
+            r"\bexport\s+default\s+function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+            r"\bclass\s+([A-Za-z_][A-Za-z0-9_]*)\b",
+            r"\bdef\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+        ]
+        for pattern in patterns:
+            for match in re.findall(pattern, content):
+                symbols.append(match)
+
+    cleaned = []
+    for item in symbols:
+        item = str(item).strip()
+        if item and item not in cleaned:
+            cleaned.append(item)
+    return cleaned[:25]
+
+
+def build_smart_file_inventory(files):
+    inventory = []
+    for file in files:
+        file_name = file.get("file_name", "unknown")
+        content = file.get("content", "")
+        metrics = get_file_metrics(content)
+        language = detect_language(content, file_name)
+        symbols = smart_detect_symbols(file_name, content)
+        inventory.append({
+            "file_name": file_name,
+            "language": language,
+            "total_lines": metrics["total_lines"],
+            "non_empty_lines": metrics["non_empty_lines"],
+            "symbols": symbols,
+            "dependencies": smart_detect_dependencies(content),
+            "routes": v11_detect_routes_in_file(file_name, content),
+        })
+    return inventory
+
+
+def build_rule_based_smart_documentation(code, file_name="", source="upload"):
+    """Safe premium fallback used when AI is disabled or unavailable."""
+    files = smart_files_from_code(code, file_name)
+    input_type = smart_documentation_scope(code, files)
+    inventory = build_smart_file_inventory(files)
+
+    languages = sorted(set(item["language"] for item in inventory if item["language"]))
+    tech_stack, frameworks = v11_detect_health_frameworks([
+        {"file_name": file.get("file_name", ""), "content": file.get("content", "")}
+        for file in files
+    ])
+
+    all_routes = []
+    all_symbols = []
+    all_dependencies = []
+    for item in inventory:
+        all_routes.extend(item["routes"])
+        for symbol in item["symbols"]:
+            all_symbols.append(f"{symbol} ({item['file_name']})")
+        for dep in item["dependencies"]:
+            all_dependencies.append(dep)
+
+    total_lines = sum(item["total_lines"] for item in inventory)
+    title = "Project Documentation"
+    if input_type == "pasted_code":
+        title = "Code Explanation"
+    elif input_type == "single_file":
+        title = "File Documentation"
+    elif input_type == "multi_file":
+        title = "Multi-file Documentation"
+
+    inventory_lines = [
+        f"- {item['file_name']} | {item['language']} | {item['total_lines']} lines"
+        for item in inventory[:40]
+    ]
+
+    doc_parts = [
+        f"# {title}",
+        "",
+        "## Overview",
+        "",
+    ]
+
+    if input_type == "pasted_code":
+        doc_parts.append("This input appears to be a pasted code snippet. The documentation focuses on what the snippet does, how it is structured, and what should be improved before using it in a larger project.")
+    elif input_type == "single_file":
+        doc_parts.append("This input contains one uploaded file. The documentation focuses on the file purpose, important logic, dependencies, routes, and improvement opportunities visible in this file.")
+    elif input_type == "multi_file":
+        doc_parts.append("This input contains multiple files. The documentation summarizes the visible file set as a partial project snapshot and explains the important parts that can be detected from the uploaded files.")
+    else:
+        doc_parts.append("This input appears to be a full project or a meaningful project folder. The documentation explains the project purpose, structure, core files, routes, frameworks, and improvement roadmap.")
+
+    doc_parts.extend([
+        "",
+        "## Input Summary",
+        "",
+        f"- Source: {source}",
+        f"- Input type: {input_type.replace('_', ' ').title()}",
+        f"- Files analyzed: {len(files)}",
+        f"- Total lines analyzed: {total_lines}",
+        f"- Detected languages: {', '.join(languages or tech_stack or ['Unknown'])}",
+        f"- Detected frameworks: {', '.join(frameworks or ['None detected'])}",
+        "",
+        "## File Inventory",
+        "",
+        "\n".join(inventory_lines) if inventory_lines else "- No files detected.",
+        "",
+        "## Important Functions, Classes, or Components",
+        "",
+        "\n".join(f"- {item}" for item in sorted(set(all_symbols))[:30]) if all_symbols else "- No major functions, classes, or components detected.",
+        "",
+        "## API Routes",
+        "",
+        "\n".join(f"- {route}" for route in sorted(set(all_routes))[:30]) if all_routes else "- No API routes detected in the provided input.",
+        "",
+        "## Dependencies and Imports",
+        "",
+        "\n".join(f"- {dep}" for dep in sorted(set(all_dependencies))[:30]) if all_dependencies else "- No imports or dependencies detected in the provided input.",
+        "",
+        "## Practical Improvement Roadmap",
+        "",
+        "- Add clear validation for user input and request payloads.",
+        "- Add structured error handling so production failures are logged without exposing private details to users.",
+        "- Keep secrets and API keys in environment variables only.",
+        "- Add tests around important functions, API routes, and edge cases.",
+        "- Document setup steps, environment variables, and deployment commands in the README.",
+        "",
+        "## Developer Notes",
+        "",
+        "This documentation is based only on the provided code. For a deeper project-level review, upload the full project folder or connect the GitHub repository."
+    ])
+
+    return {
+        "doc": clean_devflow_text("\n".join(doc_parts)),
+        "language": ", ".join(languages or tech_stack or ["Unknown"]),
+        "file_count": len(files),
+        "input_type": input_type,
+        "ai_error": "",
+    }
+
+
+def generate_ai_smart_documentation(code, file_name="", source="upload"):
+    """
+    Main smart documentation engine used by /generate-doc.
+
+    It supports:
+    - pasted functions or snippets
+    - one uploaded file
+    - multiple uploaded files
+    - full project folder uploads
+
+    It never raises errors to the route. If AI fails, it returns a safe
+    rule-based documentation result.
+    """
+    try:
+        files = smart_files_from_code(code, file_name)
+        input_type = smart_documentation_scope(code, files)
+        inventory = build_smart_file_inventory(files)
+
+        languages = sorted(set(item["language"] for item in inventory if item["language"]))
+        tech_stack, frameworks = v11_detect_health_frameworks([
+            {"file_name": file.get("file_name", ""), "content": file.get("content", "")}
+            for file in files
+        ])
+
+        if not is_ai_enabled():
+            return build_rule_based_smart_documentation(code, file_name, source)
+
+        preview_parts = []
+        used_chars = 0
+        max_preview_chars = 18000
+
+        for file in files[:25]:
+            header = f"--- FILE: {file.get('file_name', 'unknown')} ---\n"
+            body = str(file.get("content", ""))
+            remaining = max_preview_chars - used_chars - len(header)
+            if remaining <= 0:
+                break
+            snippet = body[:min(len(body), max(1200, remaining))]
+            preview_parts.append(header + snippet)
+            used_chars += len(header) + len(snippet)
+            if used_chars >= max_preview_chars:
+                break
+
+        file_inventory_text = "\n".join(
+            f"- {item['file_name']} | {item['language']} | {item['total_lines']} lines | symbols: {', '.join(item['symbols'][:6]) or 'none'}"
+            for item in inventory[:50]
+        )
+
+        all_routes = []
+        for item in inventory:
+            all_routes.extend(item["routes"])
+        routes_text = "\n".join(f"- {route}" for route in sorted(set(all_routes))[:30]) or "- No routes detected."
+
+        if input_type == "pasted_code":
+            instruction = (
+                "The user pasted a code snippet or function. Explain what the code does, the important logic, parameters, return behavior, edge cases, and improvements. Do not describe it as a full project."
+            )
+            requested_sections = "Code Purpose, How It Works, Important Logic, Risks or Edge Cases, Suggested Improvements, Clean Usage Notes"
+        elif input_type == "single_file":
+            instruction = (
+                "The user uploaded one file. Explain the file purpose, dependencies, important functions/classes, routes if any, risks, and improvements. Do not describe it as a full project."
+            )
+            requested_sections = "File Purpose, Technology Detected, Important Functions and Classes, Routes if Any, Important Logic, Risks, Suggested Improvements"
+        elif input_type == "multi_file":
+            instruction = (
+                "The user uploaded multiple files. Explain how the visible files work together. Treat it as a partial project snapshot unless enough structure proves it is a full project."
+            )
+            requested_sections = "Overview, File Roles, Technology Stack, Important Workflows, Routes if Any, Risks, Improvement Roadmap"
+        else:
+            instruction = (
+                "The user uploaded a full project or project folder. Explain what the project does, its purpose, architecture, framework, important functions, main routes, risks, and improvements."
+            )
+            requested_sections = "Executive Summary, What This Project Does, Technology Stack, Architecture Overview, Important Files, Main Workflows, API Routes, Risks, Improvement Roadmap, Developer Handover Notes"
+
+        prompt = f"""You are a senior software architect and technical documentation engineer.
+
+Create clean, professional documentation for a SaaS developer workspace.
+
+Strict formatting rules:
+- Plain markdown headings only.
+- Do not use markdown bold.
+- Do not use double asterisks.
+- Do not use decorative emojis.
+- Do not create messy line-by-line documentation.
+- Be practical, concise, and useful for developers.
+- Do not invent routes, frameworks, or risks that are not visible.
+- Use clear section headings and short paragraphs.
+- Focus on important project/file/function information only.
+
+Input type: {input_type}
+Source: {source}
+Files visible: {len(files)}
+Detected languages: {', '.join(languages or tech_stack or ['Unknown'])}
+Detected frameworks: {', '.join(frameworks or ['None detected'])}
+
+Documentation instruction:
+{instruction}
+
+Required sections:
+{requested_sections}
+
+Detected file inventory:
+{file_inventory_text}
+
+Detected routes:
+{routes_text}
+
+Code:
+{chr(10).join(preview_parts)}
+"""
+
+        result = call_groq(prompt, max_tokens=3600)
+        if result.get("success"):
+            return {
+                "doc": clean_devflow_text(result.get("text", "")),
+                "language": ", ".join(languages or tech_stack or ["Unknown"]),
+                "file_count": len(files),
+                "input_type": input_type,
+                "ai_error": "",
+            }
+
+        fallback = build_rule_based_smart_documentation(code, file_name, source)
+        fallback["ai_error"] = result.get("error", "AI generation failed.")
+        return fallback
+
+    except Exception as e:
+        logger.exception("Smart documentation engine failed")
+        fallback = build_rule_based_smart_documentation(code, file_name, source)
+        fallback["ai_error"] = str(e)
+        return fallback
+
 @app.route("/generate-doc", methods=["POST"])
 @require_auth
 def generate_doc():
@@ -2101,14 +2480,11 @@ def generate_doc():
             "usage": build_usage_summary(request.user["id"]),
         })
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
+    except Exception:
         logger.exception("Generate doc failed")
         return jsonify({
             "ok": False,
-            "error": str(e),
-            "type": type(e).__name__
+            "error": "Unexpected server error."
         }), 500
 
 
