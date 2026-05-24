@@ -264,14 +264,14 @@ const compactSourceFile = (file, index) => {
   const priority = scoreProjectFile(name);
   const language = getExtensionLanguage(name);
   const importantLines = extractImportantCodeLines(content);
-  const fullLimit = priority >= 82 ? 26000 : priority >= 55 ? 12000 : 5500;
+  const fullLimit = priority >= 82 ? 14000 : priority >= 55 ? 7000 : 3000;
 
   if (content.length <= fullLimit) {
     return `--- FILE: ${name} ---\nLANGUAGE: ${language}\nTOTAL_LINES: ${lines.length}\nPRIORITY: ${priority}\n${content}`;
   }
 
-  const head = lines.slice(0, priority >= 82 ? 220 : 90).join("\n");
-  const tail = lines.slice(priority >= 82 ? -80 : -30).join("\n");
+  const head = lines.slice(0, priority >= 82 ? 140 : 60).join("\n");
+  const tail = lines.slice(priority >= 82 ? -45 : -18).join("\n");
 
   return [
     `--- FILE: ${name} ---`,
@@ -340,7 +340,7 @@ const buildSmartUploadPackage = (files, selectedCount) => {
       [
         "",
         "SMART_COMPACTION_NOTE",
-        `${omitted} lower-priority files were omitted from the request to keep the AI request safe.`,
+        `${omitted} lower-priority files were summarized or omitted from the live AI request to keep the server request safe.`,
         "The file manifest still lists the project structure, so the documentation should focus on architecture and important files.",
       ].join("\n")
     );
@@ -500,7 +500,7 @@ const formatHealthReport = (rp) => {
 
 const MAX_FILE_SIZE_MB = 8;
 const MAX_TOTAL_FILES = 120;
-const MAX_BACKEND_CODE_CHARS = 240000;
+const MAX_BACKEND_CODE_CHARS = 85000;
 
 // Auth helpers 
 const getToken = () => localStorage.getItem("devflow_token");
@@ -1467,7 +1467,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  if (!r.ok || d.error) {
  const rawError = String(d.error || "");
  if (/too large|request entity|payload/i.test(rawError)) {
- throw new Error("This project is still too large for the server. Upload only the main project folder without backups, old fix scripts, screenshots, venv, node_modules, or generated files.");
+ throw new Error("This project was too large for one request. DevFlow compressed the upload, but the server still rejected it. Try uploading only app.py, frontend/src/App.js, frontend/src/App.css, package.json, requirements.txt, Procfile, and railway.json.");
  }
  throw new Error(rawError || "Something went wrong.");
  }
