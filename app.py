@@ -96,6 +96,128 @@ def call_groq(prompt: str, max_tokens: int = 4200) -> dict:
         return {"success": False, "error": str(e)}
 
 
+
+
+# ── DevFlow Coding Assistant ─────────────────────────────────────────────────
+CODING_ASSISTANT_REFUSAL = (
+    "I can only help with coding, programming, web apps, mobile apps, "
+    "software development, debugging, and developer workflows."
+)
+
+CODING_ASSISTANT_SYSTEM_PROMPT = """
+You are DevFlow Coding Assistant, an AI assistant inside DevFlow.
+
+Your role is to help users with programming, coding, software development,
+web apps, mobile apps, APIs, databases, deployment, debugging, architecture,
+and developer tools.
+
+You can answer questions about:
+- React, JavaScript, TypeScript, HTML, CSS
+- Python, Flask, Django
+- Node.js, APIs, backend development
+- Mobile app development including Flutter, React Native, Android, iOS, Kotlin, Swift, Dart
+- Databases, Supabase, SQL, PostgreSQL, MySQL, MongoDB
+- Git, GitHub, deployment, Railway, Vercel, Netlify, Docker
+- Bug fixing, code explanation, software architecture
+- Project planning for software products
+
+You must not answer questions outside programming, coding, software, mobile apps,
+web apps, developer tools, or developer workflows.
+
+If the user asks a non-programming question, reply exactly:
+I can only help with coding, programming, web apps, mobile apps, software development, debugging, and developer workflows.
+
+Response style:
+- Be practical, clear, and beginner-friendly.
+- Keep answers focused and useful.
+- Provide code examples when helpful.
+- Do not use markdown tables unless the comparison really needs one.
+- Do not pretend to know private files, private code, or hidden context that the user has not shared.
+- If code is incomplete, explain what is missing and give the safest next step.
+""".strip()
+
+CODING_ASSISTANT_KEYWORDS = [
+    "code", "coding", "programming", "program", "developer", "development", "software",
+    "web app", "website", "frontend", "backend", "full stack", "full-stack", "api", "apis",
+    "database", "sql", "postgres", "postgresql", "mysql", "mongodb", "supabase", "firebase",
+    "react", "javascript", "typescript", "node", "express", "next.js", "nextjs", "vite",
+    "html", "css", "tailwind", "bootstrap", "python", "flask", "django", "fastapi",
+    "mobile app", "android", "ios", "flutter", "react native", "kotlin", "swift", "dart",
+    "github", "git", "branch", "commit", "pull request", "deployment", "deploy", "railway",
+    "vercel", "netlify", "docker", "nginx", "server", "route", "endpoint", "json",
+    "auth", "authentication", "login", "signup", "stripe", "webhook", "debug", "bug",
+    "error", "traceback", "exception", "function", "class", "component", "hook", "state",
+    "props", "framework", "library", "package", "npm", "pip", "requirements", "environment variable",
+    "env", "ui", "ux", "responsive", "algorithm", "architecture", "refactor", "test", "testing",
+    "unit test", "integration test", "build", "compile", "syntax", "repository", "repo", "pull", "push",
+]
+
+CODING_ASSISTANT_FILE_PATTERNS = re.compile(
+    r"(\.py\b|\.js\b|\.jsx\b|\.ts\b|\.tsx\b|\.css\b|\.html\b|\.json\b|\.sql\b|"
+    r"\.php\b|\.java\b|\.cpp\b|\.c\b|\.cs\b|\.kt\b|\.swift\b|\.dart\b|"
+    r"npm\s+|pip\s+|git\s+|python\s+|node\s+|flask\s+|django\s+|react\s+)",
+    re.IGNORECASE,
+)
+
+
+def is_coding_related_question(message: str) -> bool:
+    text = str(message or "").strip().lower()
+    if not text:
+        return False
+
+    if CODING_ASSISTANT_FILE_PATTERNS.search(text):
+        return True
+
+    return any(keyword in text for keyword in CODING_ASSISTANT_KEYWORDS)
+
+
+def normalize_assistant_history(history):
+    clean_history = []
+    if not isinstance(history, list):
+        return clean_history
+
+    for item in history[-8:]:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role", "")).strip().lower()
+        content = str(item.get("content", "")).strip()
+        if role not in {"user", "assistant"} or not content:
+            continue
+        clean_history.append({"role": role, "content": content[:2500]})
+
+    return clean_history
+
+
+def call_groq_chat(system_prompt: str, messages, max_tokens: int = 1300) -> dict:
+    if not GROQ_API_KEY:
+        return {"success": False, "error": "GROQ_API_KEY not set"}
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [{"role": "system", "content": system_prompt}] + normalize_assistant_history(messages),
+        "temperature": 0.2,
+        "max_tokens": max_tokens,
+    }
+
+    try:
+        response = requests.post(GROQ_URL, headers=headers, json=payload, timeout=45)
+        data = response.json()
+        if response.status_code != 200:
+            return {
+                "success": False,
+                "error": data.get("error", {}).get("message", "Groq assistant error"),
+            }
+        return {"success": True, "text": data["choices"][0]["message"]["content"]}
+    except requests.exceptions.Timeout:
+        return {"success": False, "error": "Assistant request timed out."}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
 # ── Supabase ───────────────────────────────────────────────────────────────────
 def supabase_request(method, path, data=None, token=None, use_service_key=False):
     """Small Supabase REST helper.
@@ -3212,6 +3334,58 @@ def generate_tasks():
     return jsonify({"success": True, "tasks": generate_task_plan_fallback(requirements_text), "aiEnabled": False, "usage": build_usage_summary(request.user["id"])})
 
 
+@app.route("/assistant-chat", methods=["POST"])
+def assistant_chat():
+    """Public coding-only assistant for the DevFlow live demo."""
+    try:
+        data = request.get_json(silent=True) or {}
+        message = str(data.get("message", "")).strip()
+        history = data.get("history", [])
+
+        if not message:
+            return jsonify({"ok": False, "error": "Please enter a question."}), 400
+
+        if len(message) > 6000:
+            message = message[:6000] + "\n\n[Message trimmed for assistant safety.]"
+
+        if not is_coding_related_question(message):
+            return jsonify({
+                "ok": True,
+                "reply": CODING_ASSISTANT_REFUSAL,
+                "aiEnabled": is_ai_enabled(),
+                "scope": "coding_only",
+            })
+
+        messages = normalize_assistant_history(history) + [{"role": "user", "content": message}]
+
+        if is_ai_enabled():
+            result = call_groq_chat(CODING_ASSISTANT_SYSTEM_PROMPT, messages, max_tokens=1400)
+            if result.get("success"):
+                reply = clean_devflow_text(result.get("text", "")).strip()
+                return jsonify({
+                    "ok": True,
+                    "reply": reply or "I can help with coding questions. Please share the code, error, or requirement.",
+                    "aiEnabled": True,
+                    "scope": "coding_only",
+                })
+
+            logger.warning("Coding assistant Groq fallback: %s", result.get("error"))
+
+        return jsonify({
+            "ok": True,
+            "reply": (
+                "I can help with coding, debugging, web apps, mobile apps, and software development. "
+                "Groq AI is not available right now, so please try again in a moment or share a smaller coding question."
+            ),
+            "aiEnabled": False,
+            "scope": "coding_only",
+        })
+
+    except Exception:
+        logger.exception("Assistant chat failed")
+        return jsonify({"ok": False, "error": "Assistant server error."}), 500
+
+
 # ── Static serving ─────────────────────────────────────────────────────────────
 @app.errorhandler(413)
 def too_large(e):
@@ -3229,7 +3403,7 @@ def not_found(e):
     api_prefixes = (
         "/auth", "/billing", "/stripe", "/workspaces", "/documents",
         "/github", "/health", "/generate-doc", "/analyze-bug",
-        "/project-health", "/generate-tasks"
+        "/project-health", "/generate-tasks", "/assistant-chat"
     )
 
     if request.path.startswith(api_prefixes):

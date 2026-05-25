@@ -1011,6 +1011,135 @@ function WorkspaceSelector({ user, onSelect, onLogout, onAuthExpired }) {
  );
 }
 
+
+
+function DevFlowCodingAssistant() {
+ const [open, setOpen] = useState(false);
+ const [input, setInput] = useState("");
+ const [loading, setLoading] = useState(false);
+ const [messages, setMessages] = useState([
+  {
+   role: "assistant",
+   content: "Hi, I’m DevFlow Coding Assistant. Ask me about coding, debugging, web apps, mobile apps, software architecture, APIs, databases, GitHub, or deployment."
+  }
+ ]);
+ const bodyRef = useRef(null);
+
+ useEffect(() => {
+  if (bodyRef.current) {
+   bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+  }
+ }, [messages, open]);
+
+ const sendAssistantMessage = async (event) => {
+  event.preventDefault();
+  const question = input.trim();
+  if (!question || loading) return;
+
+  const nextMessages = [...messages, { role: "user", content: question }];
+  setMessages(nextMessages);
+  setInput("");
+  setLoading(true);
+
+  try {
+   const response = await fetch(`${API_BASE_URL}/assistant-chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+     message: question,
+     history: nextMessages.slice(-8),
+    }),
+   });
+
+   const data = await safeJson(response);
+   if (!response.ok || data.error) {
+    throw new Error(data.error || "Assistant failed to reply.");
+   }
+
+   setMessages(prev => [
+    ...prev,
+    { role: "assistant", content: cleanDevFlowOutput(data.reply || "I can help with coding questions. Please share more detail.") }
+   ]);
+  } catch (error) {
+   setMessages(prev => [
+    ...prev,
+    { role: "assistant", content: error.message || "Assistant is temporarily unavailable. Please try again." }
+   ]);
+  } finally {
+   setLoading(false);
+  }
+ };
+
+ const clearAssistantChat = () => {
+  setMessages([
+   {
+    role: "assistant",
+    content: "Chat cleared. Ask me any coding, debugging, web app, mobile app, software, API, database, GitHub, or deployment question."
+   }
+  ]);
+ };
+
+ return (
+  <>
+   <button
+    type="button"
+    className={`assistant-fab ${open ? "assistant-fab-open" : ""}`}
+    onClick={() => setOpen(!open)}
+    aria-label="Open DevFlow Coding Assistant"
+   >
+    {open ? "×" : "AI"}
+   </button>
+
+   {open && (
+    <div className="assistant-panel">
+     <div className="assistant-header">
+      <div>
+       <strong>DevFlow Coding Assistant</strong>
+       <span>Programming, web apps, mobile apps, software and debugging only</span>
+      </div>
+      <button type="button" className="assistant-close" onClick={() => setOpen(false)}>×</button>
+     </div>
+
+     <div className="assistant-body" ref={bodyRef}>
+      {messages.map((message, index) => (
+       <div key={`${message.role}-${index}`} className={`assistant-message assistant-message-${message.role}`}>
+        <div className="assistant-message-label">{message.role === "user" ? "You" : "DevFlow AI"}</div>
+        <div className="assistant-message-content">{message.content}</div>
+       </div>
+      ))}
+      {loading && (
+       <div className="assistant-message assistant-message-assistant">
+        <div className="assistant-message-label">DevFlow AI</div>
+        <div className="assistant-message-content assistant-typing">Thinking...</div>
+       </div>
+      )}
+     </div>
+
+     <form className="assistant-form" onSubmit={sendAssistantMessage}>
+      <textarea
+       value={input}
+       onChange={(event) => setInput(event.target.value)}
+       placeholder="Ask a coding question, paste an error, or describe a web/mobile/software problem..."
+       rows={3}
+       onKeyDown={(event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+         event.preventDefault();
+         sendAssistantMessage(event);
+        }
+       }}
+      />
+      <div className="assistant-actions">
+       <button type="button" className="assistant-clear" onClick={clearAssistantChat}>Clear</button>
+       <button type="submit" disabled={loading || !input.trim()}>{loading ? "Sending..." : "Send"}</button>
+      </div>
+     </form>
+    </div>
+   )}
+  </>
+ );
+}
+
+
 // 
 // MAIN APP
 // 
@@ -1904,6 +2033,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
 
  return (
  <div className={`app-container ${darkMode?"dark-mode":""}`}>
+ <DevFlowCodingAssistant />
  {notification && <div className="toast-notification">{notification}</div>}
  {errorMessage && <div className="toast-notification error-toast">{errorMessage}</div>}
 
