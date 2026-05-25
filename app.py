@@ -134,43 +134,13 @@ Response style:
 - Do not use markdown tables unless the comparison really needs one.
 - Do not pretend to know private files, private code, or hidden context that the user has not shared.
 - If code is incomplete, explain what is missing and give the safest next step.
+- Use the previous chat messages to understand short follow-up questions. If the user previously asked about a coding, web app, mobile app, software, API, database, deployment, or debugging topic, then follow-ups like "yes", "what should I choose?", "tell me", or "help me decide" are still in scope.
 """.strip()
 
-CODING_ASSISTANT_KEYWORDS = [
-    "code", "coding", "programming", "program", "developer", "development", "software",
-    "web app", "website", "frontend", "backend", "full stack", "full-stack", "api", "apis",
-    "database", "sql", "postgres", "postgresql", "mysql", "mongodb", "supabase", "firebase",
-    "react", "javascript", "typescript", "node", "express", "next.js", "nextjs", "vite",
-    "html", "css", "tailwind", "bootstrap", "python", "flask", "django", "fastapi",
-    "mobile app", "android", "ios", "flutter", "react native", "kotlin", "swift", "dart",
-    "github", "git", "branch", "commit", "pull request", "deployment", "deploy", "railway",
-    "vercel", "netlify", "docker", "nginx", "server", "route", "endpoint", "json",
-    "auth", "authentication", "login", "signup", "stripe", "webhook", "debug", "bug",
-    "error", "traceback", "exception", "function", "class", "component", "hook", "state",
-    "props", "framework", "library", "package", "npm", "pip", "requirements", "environment variable",
-    "env", "ui", "ux", "responsive", "algorithm", "architecture", "refactor", "test", "testing",
-    "unit test", "integration test", "build", "compile", "syntax", "repository", "repo", "pull", "push",
-]
-
-CODING_ASSISTANT_FILE_PATTERNS = re.compile(
-    r"(\.py\b|\.js\b|\.jsx\b|\.ts\b|\.tsx\b|\.css\b|\.html\b|\.json\b|\.sql\b|"
-    r"\.php\b|\.java\b|\.cpp\b|\.c\b|\.cs\b|\.kt\b|\.swift\b|\.dart\b|"
-    r"npm\s+|pip\s+|git\s+|python\s+|node\s+|flask\s+|django\s+|react\s+)",
-    re.IGNORECASE,
-)
-
-
-def is_coding_related_question(message: str) -> bool:
-    text = str(message or "").strip().lower()
-    if not text:
-        return False
-
-    if CODING_ASSISTANT_FILE_PATTERNS.search(text):
-        return True
-
-    return any(keyword in text for keyword in CODING_ASSISTANT_KEYWORDS)
-
-
+# Strict keyword filtering was intentionally removed.
+# The assistant is guided by the system prompt and the conversation history,
+# so short follow-up questions like "yes", "what should I choose?", or
+# "tell me" still work after a coding-related question.
 def normalize_assistant_history(history):
     clean_history = []
     if not isinstance(history, list):
@@ -1839,7 +1809,7 @@ def billing_refresh_subscription():
         return jsonify({
             "success": True,
             "message": "No Stripe subscription found for this user yet.",
-            "usage": build_usage_summary(request.user["id"]),
+            "usage": None,
         }), 200
 
     subscription = stripe_api_request("GET", f"subscriptions/{subscription_id}")
@@ -2906,7 +2876,6 @@ def compact_large_upload_for_generate_docs(code, file_name="", target_chars=None
 
 # ── Professional PDF Export ────────────────────────────────────────────────────
 @app.route("/export-pdf", methods=["POST"])
-@require_auth
 def export_pdf():
     """Generate a professional branded PDF from DevFlow documentation content."""
     try:
@@ -3226,7 +3195,6 @@ def export_pdf():
 
 
 @app.route("/generate-doc", methods=["POST"])
-@require_auth
 def generate_doc():
     try:
         data = request.get_json(silent=True) or {}
@@ -3244,22 +3212,7 @@ def generate_doc():
         if len(code) > MAX_CODE_CHARS:
             code = code[: max(20000, MAX_CODE_CHARS - 1000)] + "\n\nSMART_COMPACTION_NOTE\nFinal safety trim applied before documentation generation."
 
-        allowed, usage_summary = ensure_usage_allowed(request.user["id"], "documentation_generations")
-        if not allowed:
-            return usage_limit_response("documentation_generations", usage_summary)
-
         smart_result = generate_ai_smart_documentation(code, file_name, source="upload")
-
-        record_usage_event(
-            request.user["id"],
-            "documentation_generations",
-            {
-                "source": "upload",
-                "file_count": smart_result.get("file_count", 1),
-                "input_type": smart_result.get("input_type", "unknown"),
-                "ai_fallback": bool(smart_result.get("ai_error")),
-            },
-        )
 
         return jsonify({
             "ok": True,
@@ -3269,7 +3222,7 @@ def generate_doc():
             "inputType": smart_result.get("input_type", "unknown"),
             "documentationMode": "smart_documentation_v8",
             "aiEnabled": is_ai_enabled(),
-            "usage": build_usage_summary(request.user["id"]),
+            "usage": None,
         })
 
     except Exception:
@@ -3281,57 +3234,39 @@ def generate_doc():
 
 
 @app.route("/analyze-bug", methods=["POST"])
-@require_auth
 def analyze_bug():
     data = request.get_json(silent=True) or {}
     error_log = data.get("error_log","").strip()
     if not error_log: return jsonify({"error": "Please provide an error log."}), 400
-    allowed, usage_summary = ensure_usage_allowed(request.user["id"], "bug_analyzer")
-    if not allowed:
-        return usage_limit_response("bug_analyzer", usage_summary)
     if is_ai_enabled():
         result = analyze_bug_with_ai(error_log)
         if result["success"]:
-            record_usage_event(request.user["id"], "bug_analyzer", {"input_chars": len(error_log)})
-            return jsonify({"success": True, "analysis": result["analysis"], "aiEnabled": True, "usage": build_usage_summary(request.user["id"])})
-    record_usage_event(request.user["id"], "bug_analyzer", {"input_chars": len(error_log), "fallback": True})
-    return jsonify({"success": True, "analysis": rule_based_bug_analysis(error_log), "aiEnabled": False, "usage": build_usage_summary(request.user["id"])})
+            return jsonify({"success": True, "analysis": result["analysis"], "aiEnabled": True, "usage": None})
+    return jsonify({"success": True, "analysis": rule_based_bug_analysis(error_log), "aiEnabled": False, "usage": None})
 
 
 @app.route("/project-health", methods=["POST"])
-@require_auth
 def project_health():
     data = request.get_json(silent=True) or {}
     code = data.get("code","").strip()
     if not code: return jsonify({"error": "Please upload project code first."}), 400
-    allowed, usage_summary = ensure_usage_allowed(request.user["id"], "project_health")
-    if not allowed:
-        return usage_limit_response("project_health", usage_summary)
     if is_ai_enabled():
         result = generate_health_report_with_ai(code)
         if result["success"]:
-            record_usage_event(request.user["id"], "project_health", {"code_chars": len(code)})
-            return jsonify({"success": True, "report": result["report"], "aiEnabled": True, "usage": build_usage_summary(request.user["id"])})
-    record_usage_event(request.user["id"], "project_health", {"code_chars": len(code), "fallback": True})
-    return jsonify({"success": True, "report": generate_project_health_report(code), "aiEnabled": False, "usage": build_usage_summary(request.user["id"])})
+            return jsonify({"success": True, "report": result["report"], "aiEnabled": True, "usage": None})
+    return jsonify({"success": True, "report": generate_project_health_report(code), "aiEnabled": False, "usage": None})
 
 
 @app.route("/generate-tasks", methods=["POST"])
-@require_auth
 def generate_tasks():
     data = request.get_json(silent=True) or {}
     requirements_text = data.get("requirements","").strip()
     if not requirements_text: return jsonify({"error": "Please paste requirements first."}), 400
-    allowed, usage_summary = ensure_usage_allowed(request.user["id"], "task_generator")
-    if not allowed:
-        return usage_limit_response("task_generator", usage_summary)
     if is_ai_enabled():
         result = generate_tasks_with_ai(requirements_text)
         if result["success"]:
-            record_usage_event(request.user["id"], "task_generator", {"input_chars": len(requirements_text)})
-            return jsonify({"success": True, "tasks": result["tasks"], "aiEnabled": True, "usage": build_usage_summary(request.user["id"])})
-    record_usage_event(request.user["id"], "task_generator", {"input_chars": len(requirements_text), "fallback": True})
-    return jsonify({"success": True, "tasks": generate_task_plan_fallback(requirements_text), "aiEnabled": False, "usage": build_usage_summary(request.user["id"])})
+            return jsonify({"success": True, "tasks": result["tasks"], "aiEnabled": True, "usage": None})
+    return jsonify({"success": True, "tasks": generate_task_plan_fallback(requirements_text), "aiEnabled": False, "usage": None})
 
 
 @app.route("/assistant-chat", methods=["POST"])
@@ -3348,14 +3283,10 @@ def assistant_chat():
         if len(message) > 6000:
             message = message[:6000] + "\n\n[Message trimmed for assistant safety.]"
 
-        if not is_coding_related_question(message):
-            return jsonify({
-                "ok": True,
-                "reply": CODING_ASSISTANT_REFUSAL,
-                "aiEnabled": is_ai_enabled(),
-                "scope": "coding_only",
-            })
-
+        # Do not use a strict keyword filter here.
+        # The assistant is guided by the system prompt, and chat history is passed in so
+        # short follow-up questions like "yes", "what should I choose?", or "tell me"
+        # still work after a programming-related question.
         messages = normalize_assistant_history(history) + [{"role": "user", "content": message}]
 
         if is_ai_enabled():

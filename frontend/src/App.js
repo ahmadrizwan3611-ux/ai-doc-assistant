@@ -6,6 +6,11 @@ import { InfinitySpin } from "react-loader-spinner";
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || ((typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) ? "http://127.0.0.1:5000" : window.location.origin);
 
+// Public demo mode: visitors can test DevFlow without login, signup, pricing, or subscriptions.
+const PUBLIC_DEMO_MODE = true;
+const DEMO_USER = { id: "public-demo-user", email: "demo@devflow.local", full_name: "DevFlow Demo User", demo: true };
+const DEMO_WORKSPACE = { id: "public-demo-workspace", name: "Public Live Demo", role: "demo", demo: true };
+
 const formatPlanName = (plan) => {
   const value = String(plan || "free").toLowerCase();
   if (value === "pro") return "PRO";
@@ -589,239 +594,48 @@ const authFetch = async (path, options = {}, onAuthExpired) => {
 // SAAS LANDING PAGE PUBLIC DEMO
 // 
 function LandingPage({ onStart }) {
- const features = [
- {
- title: "AI Documentation",
- text: "Generate professional documentation from files, folders, or GitHub repositories."
- },
- {
- title: "Bug Analyzer",
- text: "Paste any error log and get root cause, fix steps, and prevention guidance."
- },
- {
- title: "Smart Health",
- text: "Scan codebases for risks, missing files, security notes, and production readiness."
- },
- {
- title: "Team Workspaces",
- text: "Create shared company workspaces, save docs, and keep project knowledge organized."
- }
- ];
+  return (
+    <div className="landing-page public-demo-landing">
+      <header className="landing-nav">
+        <div>
+          <h1 className="landing-logo">DevFlow</h1>
+          <p className="landing-subtitle">AI-powered developer workspace</p>
+        </div>
 
- const pricing = [
- {
- name: "Free",
- price: "$0",
- note: "For trying DevFlow",
- items: ["5 AI docs/month", "1 workspace", "Bug Analyzer", "Smart Health", "Markdown/PDF export"]
- },
- {
- name: "Pro",
- price: "$19",
- note: "For active developers",
- items: ["Unlimited docs", "GitHub repo documentation", "3 workspaces", "Saved docs history", "Priority AI responses"]
- },
- {
- name: "Team",
- price: "$49",
- note: "For growing software teams",
- items: ["Unlimited workspaces", "Team members", "Code Review Assistant", "Jira/Trello roadmap", "Admin and audit features"]
- }
- ];
+        <button
+          type="button"
+          className="landing-primary-btn"
+          onClick={onStart}
+        >
+          Open Demo Workspace
+        </button>
+      </header>
 
- const sectionStyle = {
- width: "100%",
- maxWidth: "1180px",
- margin: "0 auto",
- padding: "0 24px",
- boxSizing: "border-box"
- };
+      <main className="landing-hero">
+        <div className="landing-pill">
+          AI-powered developer workspace for software teams
+        </div>
 
- return (
- <div style={{ minHeight: "100vh", background: "#f4f7fb", color: "#0f172a" }}>
- <nav style={{
- ...sectionStyle,
- paddingTop: "28px",
- display: "flex",
- justifyContent: "space-between",
- alignItems: "center",
- gap: "16px",
- flexWrap: "wrap"
- }}>
- <div style={{ fontSize: "34px", fontWeight: "900", color: "#2563eb" }}>DevFlow</div>
- <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
- <button
- onClick={() => onStart("login")}
- style={{
- background: "#ffffff",
- color: "#0f172a",
- border: "1px solid #dbe3ef",
- borderRadius: "14px",
- padding: "12px 18px",
- fontWeight: "800",
- cursor: "pointer"
- }}
- >
- Log In
- </button>
- <button
- onClick={() => onStart("signup")}
- style={{
- background: "#2563eb",
- color: "#ffffff",
- border: "none",
- borderRadius: "14px",
- padding: "12px 18px",
- fontWeight: "800",
- cursor: "pointer"
- }}
- >
- Start Free
- </button>
- </div>
- </nav>
+        <h2>
+          Turn any codebase into docs, tasks, health reports, and team knowledge.
+        </h2>
 
- <section style={{
- ...sectionStyle,
- paddingTop: "76px",
- paddingBottom: "56px",
- textAlign: "center"
- }}>
- <div style={{
- display: "inline-flex",
- alignItems: "center",
- gap: "8px",
- background: "#e8f0ff",
- color: "#1d4ed8",
- padding: "10px 16px",
- borderRadius: "999px",
- fontWeight: "800",
- marginBottom: "22px"
- }}>
- AI-powered developer workspace for software teams
- </div>
+        <p>
+          DevFlow helps developers and small teams upload code or project folders,
+          generate clean documentation, analyze bugs, review project health, create
+          task plans, and export reports.
+        </p>
 
- <h1 style={{
- fontSize: "clamp(42px, 7vw, 82px)",
- lineHeight: "1.02",
- margin: "0 auto",
- maxWidth: "980px",
- letterSpacing: "-0.05em"
- }}>
- Turn any codebase into docs, tasks, health reports, and team knowledge.
- </h1>
-
- <p style={{
- maxWidth: "820px",
- margin: "24px auto 0",
- color: "#64748b",
- fontSize: "22px",
- lineHeight: "1.65"
- }}>
- DevFlow helps software companies reduce knowledge loss, speed up onboarding, analyze bugs,
- and document GitHub repositories inside shared team workspaces.
- </p>
-
- <div style={{
- display: "flex",
- justifyContent: "center",
- gap: "14px",
- flexWrap: "wrap",
- marginTop: "34px"
- }}>
- <button
- onClick={() => onStart("signup")}
- style={{
- background: "#2563eb",
- color: "#ffffff",
- border: "none",
- borderRadius: "16px",
- padding: "16px 26px",
- fontWeight: "900",
- fontSize: "17px",
- cursor: "pointer",
- boxShadow: "0 14px 30px rgba(37, 99, 235, 0.22)"
- }}
- >
- Create Free Workspace
- </button>
- <button
- onClick={() => onStart("login")}
- style={{
- background: "#ffffff",
- color: "#0f172a",
- border: "1px solid #dbe3ef",
- borderRadius: "16px",
- padding: "16px 26px",
- fontWeight: "900",
- fontSize: "17px",
- cursor: "pointer"
- }}
- >
- I already have an account
- </button>
- </div>
- </section>
-
- <section style={{
- ...sectionStyle,
- display: "grid",
- gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
- gap: "18px",
- paddingBottom: "54px"
- }}>
- {features.map((feature) => (
- <div key={feature.title} style={{
- background: "#ffffff",
- border: "1px solid #e2e8f0",
- borderRadius: "24px",
- padding: "26px",
- boxShadow: "0 14px 38px rgba(15, 23, 42, 0.06)"
- }}>
- <h3 style={{ margin: "0 0 10px", fontSize: "22px" }}>{feature.title}</h3>
- <p style={{ margin: 0, color: "#64748b", lineHeight: "1.65", fontSize: "15px" }}>{feature.text}</p>
- </div>
- ))}
- </section>
-
- <section style={{ ...sectionStyle, paddingBottom: "64px" }}>
- <div style={{
- background: "#0f172a",
- color: "#ffffff",
- borderRadius: "30px",
- padding: "34px",
- boxShadow: "0 18px 50px rgba(15, 23, 42, 0.18)"
- }}>
- <h2 style={{ margin: "0 0 10px", fontSize: "34px" }}>Simple pricing for modern software teams</h2>
- <p style={{ color: "#cbd5e1", margin: "0 0 24px", fontSize: "17px", lineHeight: "1.6" }}>
- Start free, upgrade when your team needs more workspaces, unlimited AI documentation, and company-ready collaboration.
- </p>
-
- <div style={{
- display: "grid",
- gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
- gap: "16px"
- }}>
- {pricing.map((plan, index) => (
- <div key={plan.name} style={{
- background: index === 1 ? "#2563eb" : "#ffffff",
- color: index === 1 ? "#ffffff" : "#0f172a",
- borderRadius: "22px",
- padding: "24px"
- }}>
- <h3 style={{ margin: 0, fontSize: "24px" }}>{plan.name}</h3>
- <div style={{ fontSize: "42px", fontWeight: "900", marginTop: "12px" }}>{plan.price}</div>
- <p style={{ color: index === 1 ? "#dbeafe" : "#64748b", margin: "4px 0 18px" }}>{plan.note}</p>
- <ul style={{ paddingLeft: "18px", margin: 0, lineHeight: "1.9" }}>
- {plan.items.map((item) => <li key={item}>{item}</li>)}
- </ul>
- </div>
- ))}
- </div>
- </div>
- </section>
- </div>
- );
+        <button
+          type="button"
+          className="landing-main-btn"
+          onClick={onStart}
+        >
+          Open Demo Workspace
+        </button>
+      </main>
+    </div>
+  );
 }
 
 // 
@@ -895,7 +709,7 @@ function AuthScreen({ onLogin, initialMode = "login", onBackToLanding }) {
  )}
 
  <div className="auth-tabs">
- <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Log In</button>
+ <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Demo Access</button>
  <button className={mode === "signup" ? "active" : ""} onClick={() => setMode("signup")}>Sign Up</button>
  </div>
 
@@ -907,7 +721,7 @@ function AuthScreen({ onLogin, initialMode = "login", onBackToLanding }) {
  onKeyDown={e => e.key === "Enter" && handle()} />
 
  <button className="auth-btn" onClick={handle} disabled={loading}>
- {loading ? "Please wait..." : mode === "login" ? "Log In" : "Create Account"}
+ {loading ? "Please wait..." : mode === "login" ? "Demo Access" : "Open Demo"}
  </button>
  </div>
  </div>
@@ -1047,7 +861,7 @@ function DevFlowCodingAssistant() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
      message: question,
-     history: nextMessages.slice(-8),
+     history: messages.slice(-8),
     }),
    });
 
@@ -1144,6 +958,7 @@ function DevFlowCodingAssistant() {
 // MAIN APP
 // 
 function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }) {
+ const demoMode = Boolean(user?.demo || workspace?.demo);
  const [code, setCode] = useState("");
  const [doc, setDoc] = useState("");
  const [loading, setLoading] = useState(false);
@@ -1192,6 +1007,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  const showError = msg => { setErrorMessage(msg); setTimeout(() => setErrorMessage(""), 4000); };
 
  const loadUsage = async () => {
+ if (demoMode) return;
  setUsageLoading(true);
  try {
  const r = await authFetch("/billing/usage", { method: "GET" }, onAuthExpired);
@@ -1301,6 +1117,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  };
 
  const syncStripeSessionFromUrl = async () => {
+ if (demoMode) return;
  const params = new URLSearchParams(window.location.search);
  const sessionId = params.get("session_id");
  const stripeSuccess = params.get("stripe_success");
@@ -1398,6 +1215,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
     }
   }; const saveWorkspaceDocument = async ({ title, language, content, file_count, successMessage }) => {
  if (!content) { toast.error("Nothing to save yet."); return; }
+ if (demoMode) { toast.success("Demo mode: use Copy, Markdown, or PDF export instead of workspace saving."); return; }
  setSaving(true);
  try {
  const r = await authFetch(`/workspaces/${workspace.id}/documents`, {
@@ -2042,8 +1860,8 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <h1>DevFlow</h1>
  <div className="hero-user-bar">
  <span className="workspace-badge"> {workspace.name}</span>
- <button className="nav-small-btn" onClick={onSwitchWorkspace}>Switch</button>
- <button className="nav-small-btn danger" onClick={onLogout}>Logout</button>
+ {!demoMode && <button className="nav-small-btn" onClick={onSwitchWorkspace}>Switch</button>}
+ {!demoMode && <button className="nav-small-btn danger" onClick={onLogout}>Logout</button>}
  <button className="theme-toggle" onClick={() => setDarkMode(!darkMode)}>
  {darkMode ? "Light" : "Dark"}
  </button>
@@ -2051,16 +1869,16 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  </div>
 
  <div className="workspace-nav">
- {["docs","bugs","health","tasks","github","history","team","billing"].map(m => (
+ {(demoMode ? ["docs","bugs","health","tasks","github"] : ["docs","bugs","health","tasks","github","history","team","billing"]).map(m => (
  <button key={m} className={activeModule===m?"nav-active":""} onClick={() => setActiveModule(m)}>
  {m === "docs" ? "Documentation" : m === "bugs" ? "Bug Analyzer" : m === "health" ? "Smart Health" : m === "tasks" ? "Task Generator" : m === "history" ? " Saved Docs" : m === "github" ? " GitHub" : m === "billing" ? " Billing" : " Team"}
  </button>
  ))}
  </div>
- <p>AI-powered developer workspace - {workspace.name}</p>
+ <p>{demoMode ? "Public live demo - no login or signup required" : `AI-powered developer workspace - ${workspace.name}`}</p>
  </header>
 
- {upgradePrompt && (
+ {!demoMode && upgradePrompt && (
  <div className="loading-overlay">
  <div className="loading-card" style={{maxWidth:"560px", textAlign:"left"}}>
  <h2 style={{marginTop:0}}>Upgrade Required</h2>
@@ -2078,7 +1896,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  </div>
  )}
 
- {usageInfo && (
+ {!demoMode && usageInfo && (
  <section style={{maxWidth:"1180px", margin:"18px auto 0", padding:"18px", background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:"20px", boxShadow:"0 10px 28px rgba(15, 23, 42, 0.06)"}}>
  <div style={{display:"flex", justifyContent:"space-between", gap:"16px", alignItems:"center", flexWrap:"wrap"}}>
  <div>
@@ -2130,7 +1948,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <div className="button-row">
  <button onClick={handleGenerateDoc} disabled={loading||!code.trim()}>{loading?"Generating...":"Generate"}</button>
  <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>Health Review</button>
- <button className="secondary-btn" onClick={saveDoc} disabled={!doc||saving}>{saving?"Saving...":" Save"}</button>
+ <button className="secondary-btn" onClick={saveDoc} disabled={!doc||saving||demoMode}>{demoMode ? "Demo Save Off" : saving?"Saving...":" Save"}</button>
  <button className="secondary-btn" onClick={()=>{if(!doc){toast.error("Generate first.");return;}navigator.clipboard.writeText(cleanDoc(doc));toast.success("Copied!");}}>Copy</button>
  <button className="secondary-btn" onClick={()=>{if(!doc){toast.error("Generate first.");return;}downloadTextFile(doc,"documentation.md","text/markdown");toast.success("Markdown exported!");}}>Markdown</button>
  <button className="secondary-btn" onClick={handleExportPDF} disabled={!doc}>PDF</button>
@@ -2181,7 +1999,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <p className="helper-text">Upload or paste code in the Documentation tab first. DevFlow will choose Code Quality, File Health, Project Snapshot, or Full Smart Health automatically.</p>
  <div className="button-row">
  <button onClick={handleProjectHealth} disabled={loading||!code.trim()}>{loading?"Analyzing...":"Generate Health Review"}</button>
- <button className="secondary-btn" onClick={saveHealthReport} disabled={!healthReport||saving}>{saving?"Saving...":" Save Health"}</button>
+ <button className="secondary-btn" onClick={saveHealthReport} disabled={!healthReport||saving||demoMode}>{demoMode ? "Demo Save Off" : saving?"Saving...":" Save Health"}</button>
  <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}navigator.clipboard.writeText(cleanDevFlowOutput(healthReport));toast.success("Copied!");}} disabled={!healthReport}>Copy</button>
  <button className="secondary-btn" onClick={()=>{if(!healthReport){toast.error("Generate health report first.");return;}downloadTextFile(cleanDevFlowOutput(healthReport),"project-health-report.md","text/markdown");toast.success("Markdown exported!");}} disabled={!healthReport}>Markdown</button>
  <button className="secondary-btn" onClick={()=>exportContentAsPDF("Smart Health Report", healthReport, "project-health-report.pdf")} disabled={!healthReport}>PDF</button>
@@ -2293,7 +2111,7 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
  <button className="secondary-btn" onClick={()=>{if(!repoDoc){toast.error("Generate GitHub docs first.");return;}navigator.clipboard.writeText(cleanDoc(repoDoc));toast.success("Copied!");}} disabled={!repoDoc}>Copy</button>
  <button className="secondary-btn" onClick={()=>{if(!repoDoc){toast.error("Generate GitHub docs first.");return;}downloadTextFile(repoDoc,"github-repository-documentation.md","text/markdown");toast.success("Markdown exported!");}} disabled={!repoDoc}>Markdown</button>
  <button className="secondary-btn" onClick={()=>exportContentAsPDF("GitHub Repository Documentation", repoDoc, "github-repository-documentation.pdf")} disabled={!repoDoc}>PDF</button>
- <button className="secondary-btn" onClick={saveRepoDoc} disabled={!repoDoc||saving}>{saving?"Saving...":" Save"}</button>
+ <button className="secondary-btn" onClick={saveRepoDoc} disabled={!repoDoc||saving}>{demoMode ? "Demo Save Off" : saving?"Saving...":" Save"}</button>
  <button className="danger-btn" onClick={()=>{setRepoUrl("");setRepoDoc("");setRepoName("");}}>Clear</button>
  </div>
  </section>
@@ -2447,12 +2265,13 @@ function MainApp({ user, workspace, onSwitchWorkspace, onLogout, onAuthExpired }
 export default function App() {
  const [user, setUser] = useState(null);
  const [workspace, setWorkspace] = useState(null);
- const [checkingSession, setCheckingSession] = useState(true);
+ const [checkingSession, setCheckingSession] = useState(!PUBLIC_DEMO_MODE);
  const [showAuth, setShowAuth] = useState(false);
  const [authMode, setAuthMode] = useState("login");
  const didBootstrap = useRef(false);
 
  useEffect(() => {
+ if (PUBLIC_DEMO_MODE) return;
  if (didBootstrap.current) return;
  didBootstrap.current = true;
 
@@ -2509,6 +2328,12 @@ export default function App() {
  };
 
  const openAuth = (mode = "login") => {
+ if (PUBLIC_DEMO_MODE) {
+ setUser(DEMO_USER);
+ setWorkspace(DEMO_WORKSPACE);
+ setShowAuth(false);
+ return;
+ }
  setAuthMode(mode);
  setShowAuth(true);
  };
@@ -2526,6 +2351,21 @@ export default function App() {
  setWorkspace(null);
  toast.error("Session expired. Please log in again.");
  };
+
+ if (PUBLIC_DEMO_MODE) {
+ return (
+ <>
+ <Toaster position="top-right" />
+ <MainApp
+ user={DEMO_USER}
+ workspace={DEMO_WORKSPACE}
+ onSwitchWorkspace={() => {}}
+ onLogout={() => {}}
+ onAuthExpired={() => {}}
+ />
+ </>
+ );
+ }
 
  if (checkingSession) {
  return (
