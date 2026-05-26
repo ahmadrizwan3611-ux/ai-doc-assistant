@@ -2018,3 +2018,106 @@ body {
   }
 }
 
+
+/* DevFlow Assistant Wide Panel + Fixed Input Visibility V9 */
+.assistant-panel {
+  right: 32px !important;
+  bottom: 92px !important;
+  width: min(720px, calc(100vw - 64px)) !important;
+  height: min(720px, calc(100vh - 128px)) !important;
+  max-height: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.assistant-header {
+  flex-shrink: 0 !important;
+}
+
+.assistant-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  padding: 22px !important;
+}
+
+.assistant-form {
+  flex-shrink: 0 !important;
+  padding: 16px 18px 18px !important;
+  background: #ffffff !important;
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+.assistant-form textarea {
+  min-height: 74px !important;
+  max-height: 120px !important;
+  resize: none !important;
+  overflow-y: auto !important;
+}
+
+.assistant-message-content {
+  font-size: 14.5px !important;
+  line-height: 1.68 !important;
+}
+
+.assistant-message-user .assistant-message-content {
+  margin-left: 110px !important;
+}
+
+.assistant-message-assistant .assistant-message-content {
+  margin-right: 70px !important;
+}
+
+.assistant-fab {
+  right: 32px !important;
+  bottom: 24px !important;
+}
+
+@media (max-width: 980px) {
+  .assistant-panel {
+    right: 18px !important;
+    bottom: 88px !important;
+    width: calc(100vw - 36px) !important;
+    height: min(720px, calc(100vh - 114px)) !important;
+  }
+
+  .assistant-fab {
+    right: 18px !important;
+    bottom: 18px !important;
+  }
+
+  .assistant-message-user .assistant-message-content {
+    margin-left: 32px !important;
+  }
+
+  .assistant-message-assistant .assistant-message-content {
+    margin-right: 32px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .assistant-panel {
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 82px !important;
+    width: auto !important;
+    height: calc(100vh - 102px) !important;
+    border-radius: 22px !important;
+  }
+
+  .assistant-body {
+    padding: 16px !important;
+  }
+
+  .assistant-form {
+    padding: 12px !important;
+  }
+
+  .assistant-form textarea {
+    min-height: 64px !important;
+  }
+}
+/* End DevFlow Assistant Wide Panel + Fixed Input Visibility V9 */
